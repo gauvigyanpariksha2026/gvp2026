@@ -307,10 +307,22 @@ function backfillOmrNumbers() {
   var last = sheet.getLastRow();
   if (last < 2) return;
   var regs = sheet.getRange(2, 1, last - 1, 1).getValues();
+  var parsed = regs.map(function (row) {
+    var m = String(row[0] || '').match(/(\d+)$/);
+    return m ? parseInt(m[1], 10) : null;
+  });
+  var maxSerial = 0;
+  for (var i = 0; i < parsed.length; i++) {
+    if (parsed[i] !== null && parsed[i] > maxSerial) maxSerial = parsed[i];
+  }
+  var nextUnparsed = maxSerial;
   var out = [];
-  for (var i = 0; i < regs.length; i++) {
-    var m = String(regs[i][0] || '').match(/(\d+)$/);
-    var n = m ? parseInt(m[1], 10) : (i + 1);
+  for (var j = 0; j < parsed.length; j++) {
+    var n = parsed[j];
+    if (n === null) {
+      nextUnparsed += 1;
+      n = nextUnparsed;
+    }
     out.push([omrFromSerial_(n)]);
   }
   sheet.getRange(2, 18, out.length, 1).setValues(out);
