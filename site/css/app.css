@@ -691,7 +691,7 @@ a:focus-visible {
 }
 .flash-back small { color: #d9c79d; }
 .flash-back strong { margin-top: 10px; font-size: 1.16rem; line-height: 1.4; }
-.flash-back p { margin-top: 9px; color: rgba(255,255,255,.79); font-size: .8rem; line-height: 1.65; }
+.flash-back .flash-description { display: block; margin-top: 9px; color: rgba(255,255,255,.79); font-size: .8rem; line-height: 1.65; }
 .flash-back em { color: rgba(255,255,255,.65); }
 
 .exam-overview {
@@ -891,7 +891,7 @@ a:focus-visible {
 .selection-copy h3 { margin-top: 5px; font-size: 1rem; font-weight: 600; line-height: 1.4; }
 .selection-copy p { margin-top: 6px; color: rgba(255,255,255,.7); font-size: .73rem; line-height: 1.55; }
 .selection-rules { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
-.selection-rules div {
+.selection-rules li {
   display: grid;
   padding: 10px 12px;
   border: 1px solid rgba(255,255,255,.16);
@@ -1798,7 +1798,7 @@ body main.rounded-b-2xl > #payForm { background: linear-gradient(145deg, #eaf7ed
 .flash-front-copy small { color: #9a492e; font-weight: 700; }
 .flash-front-copy strong { margin-top: 3px; color: #2c2119; font-size: 1rem; font-weight: 700; }
 .flash-front-copy em { margin-top: 5px; color: #725f50; font-weight: 600; opacity: 1; }
-.flash-back p { color: rgba(255,255,255,.88); font-size: .85rem; font-weight: 500; }
+.flash-back .flash-description { color: rgba(255,255,255,.88); font-size: .85rem; font-weight: 500; }
 
 /* Motion is applied only after JavaScript confirms the observer is available. */
 [data-step] { opacity: 1; }
@@ -2062,7 +2062,13 @@ main section.form-step-card:hover,
   border-radius: 12px;
   cursor: zoom-in;
   box-shadow: 0 12px 24px rgba(55,37,20,.16);
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
+.exam-poster-frame .exam-poster-thumb img { width: 100%; border-radius: inherit; }
+.registration-payment-banner { margin-top: 0; margin-bottom: 1.5rem; }
 .exam-info-icon,
 .mini-icon,
 .selection-number {

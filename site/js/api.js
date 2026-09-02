@@ -7,6 +7,7 @@
  */
 var GVP_API = (function () {
   var API_URL = 'https://script.google.com/macros/s/AKfycbwQQUtYNfxPgrTaJB2bY517jDpNo0knfYdnSFlQNZ7LRSXO1-Xg3lQe6KWnbalxxAIK/exec';
+  var REQUEST_TIMEOUT_MS = 30000;
 
   function configured() {
     return !!API_URL && API_URL.indexOf('PASTE_') !== 0;
@@ -22,18 +23,49 @@ var GVP_API = (function () {
         url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(v);
       }
     });
-    return fetch(url, { method: 'GET' }).then(readJson_);
+    return request_(url, { method: 'GET', cache: 'no-store' });
   }
 
   function post(action, payload) {
     if (!configured()) return Promise.reject(new Error('API_URL is not set in js/api.js'));
     // Content-Type must stay text/plain so this remains a CORS "simple request" —
     // Apps Script Web Apps do not answer CORS preflight (OPTIONS) requests.
-    return fetch(API_URL, {
+    return request_(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: action, payload: payload || {} })
-    }).then(readJson_);
+    });
+  }
+
+  function request_(url, options) {
+    if (typeof fetch !== 'function') {
+      return Promise.reject(new Error('This browser does not support network requests'));
+    }
+
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = null;
+    if (controller) {
+      options.signal = controller.signal;
+      timer = setTimeout(function () { controller.abort(); }, REQUEST_TIMEOUT_MS);
+    }
+
+    function cleanup_(value) {
+      if (timer) clearTimeout(timer);
+      return value;
+    }
+
+    return fetch(url, options)
+      .then(function (res) {
+        if (!res.ok) throw new Error('Server returned HTTP ' + res.status);
+        return readJson_(res);
+      })
+      .then(cleanup_, function (err) {
+        cleanup_();
+        if (err && err.name === 'AbortError') {
+          throw new Error('Request timed out. Please check your connection and try again.');
+        }
+        throw err;
+      });
   }
 
   function readJson_(res) {
