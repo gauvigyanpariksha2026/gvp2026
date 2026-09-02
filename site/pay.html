@@ -226,6 +226,10 @@ select.inp:disabled{
           <p class="hint">१० अंक, बिना +91</p>
         </div>
       </div>
+      <div class="sr-only" style="position:absolute;left:-9999px" aria-hidden="true">
+        <label for="website">Website</label>
+        <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+      </div>
       <div id="formErr" class="hidden mt-6 rounded-lg border border-terra/50 bg-terra/10 px-4 py-3 text-sm"></div>
       <div class="mt-8 flex flex-col sm:flex-row sm:items-center gap-4">
         <button id="payBtn" type="button" class="btn">
@@ -554,7 +558,7 @@ $('payBtn').addEventListener('click',function(){
 
   GVP_API.post('reportSchoolPayment',{
       district:f.district, block:f.block, school:f.school,
-      payeeName:payeeName, utr:utr, mobile:mobile,
+      payeeName:payeeName, utr:utr, mobile:mobile, hp:$('website').value,
       students:LAST_BILL.students, amount:LAST_BILL.amountDue
     })
     .then(function(res){

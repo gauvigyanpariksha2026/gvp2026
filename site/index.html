@@ -272,6 +272,11 @@ select.inp:disabled{
       </label>
     </section>
 
+    <div class="sr-only" style="position:absolute;left:-9999px" aria-hidden="true">
+      <label for="website">Website</label>
+      <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+    </div>
+
     <div id="formErr" class="hidden mt-6 rounded-lg border border-terra/50 bg-terra/10 px-4 py-3 text-sm"></div>
 
     <div class="mt-8 flex flex-col sm:flex-row sm:items-center gap-4">
@@ -789,7 +794,8 @@ $('submitBtn').addEventListener('click',function(){
     school:$('school').value.trim(),
     village:'',
     mobile:$('mobile').value.trim(),
-    declare:$('declare').checked
+    declare:$('declare').checked,
+    hp:$('website').value
   };
   var schoolParts=data.school.split(',');
   data.village=schoolParts.length>1?schoolParts[schoolParts.length-1].trim():'';

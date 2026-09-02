@@ -221,7 +221,7 @@ function ensureRegistrationHeaders_(sheet) {
   if (changed) sheet.getRange(1, 1, 1, REG_HEADERS_.length).setValues([headers]);
 }
 
-function nextRegSerial_(sheet) {
+function scanMaxRegSerial_(sheet) {
   var last = sheet.getLastRow();
   var max = 0;
   if (last >= 2) {
@@ -234,12 +234,47 @@ function nextRegSerial_(sheet) {
       }
     }
   }
-  return max + 1;
+  return max;
+}
+
+// Registrations happen one at a time under the script lock, so a cached
+// counter in Properties avoids rescanning the whole Reg column on every
+// submission. The first call after deploy (or after the property is
+// cleared) falls back to a one-time scan to pick up where the sheet left off.
+function nextRegSerial_(sheet) {
+  var props = PropertiesService.getDocumentProperties();
+  var stored = props.getProperty('LAST_REG_SERIAL');
+  var next = (stored ? parseInt(stored, 10) : scanMaxRegSerial_(sheet)) + 1;
+  props.setProperty('LAST_REG_SERIAL', String(next));
+  return next;
+}
+
+// Same student (by name + father + mobile) submitted twice, e.g. a
+// double-click or a resubmit after a network hiccup. Siblings sharing a
+// household mobile number are unaffected since name+father must also match.
+function duplicateRegistrationExists_(sheet, name, father, mobile) {
+  var last = sheet.getLastRow();
+  if (last < 2) return false;
+  // C:O covers Name(0), Father(1) ... Mobile(12) in one contiguous read.
+  var values = sheet.getRange(2, 3, last - 1, 13).getValues();
+  var nameKey = compactKey_(name);
+  var fatherKey = compactKey_(father);
+  var mobileKey = String(mobile || '').trim();
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][12] || '').trim() !== mobileKey) continue;
+    if (compactKey_(values[i][0]) === nameKey && compactKey_(values[i][1]) === fatherKey) return true;
+  }
+  return false;
 }
 
 function submitRegistration(data) {
   data = data || {};
   try {
+    // Honeypot: real users never fill this hidden field, bots usually do.
+    // Fail with the same generic error a validation failure would give.
+    if (data.hp) {
+      return { ok: false, error: 'आवश्यक जानकारी अधूरी है' };
+    }
     if (!data.name || !data.father || !data.gender || !data.cls) {
       return { ok: false, error: 'आवश्यक जानकारी अधूरी है' };
     }
@@ -282,6 +317,9 @@ function submitRegistration(data) {
       var ss = getSpreadsheet_();
       var sheet = getRegistrationSheet_(ss);
       ensureRegistrationHeaders_(sheet);
+      if (duplicateRegistrationExists_(sheet, data.name, data.father, data.mobile)) {
+        return { ok: false, error: 'यह विद्यार्थी पहले से पंजीकृत है / This student is already registered' };
+      }
       var nextNum = nextRegSerial_(sheet);
       var regNo = 'GVP-2026-' + ('00000' + nextNum).slice(-5);
       var omrNo = omrFromSerial_(nextNum);
@@ -489,6 +527,9 @@ function getSchoolBill(district, block, school) {
 function reportSchoolPayment(data) {
   data = data || {};
   try {
+    if (data.hp) {
+      return { ok: false, error: 'School name is required / विद्यालय का नाम लिखें' };
+    }
     var district = String(data.district || '').trim();
     var block = String(data.block || '').trim();
     var school = String(data.school || '').trim();
