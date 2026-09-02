@@ -13,9 +13,9 @@
  * into API_URL at the top of site/js/api.js.
  *
  * Read actions  (GET  ?action=NAME&...params)
- *   getDistricts, getBlocks
+ *   getDistricts, getLocations, getBlocks, getSchoolBill
  * Write actions (POST body: {"action":"NAME","payload":{...}})
- *   submitRegistration, getSchoolBill, reportSchoolPayment
+ *   submitRegistration, reportSchoolPayment
  */
 
 // For a spreadsheet-bound Apps Script, the attached spreadsheet is used first.
@@ -110,6 +110,8 @@ function dispatchApi_(action, p) {
     switch (action) {
       case 'getDistricts':
         return { ok: true, data: getDistricts() };
+      case 'getLocations':
+        return { ok: true, data: getLocations() };
       case 'getBlocks':
         return { ok: true, data: getBlocks(p.district) };
       case 'submitRegistration':
@@ -128,6 +130,10 @@ function dispatchApi_(action, p) {
 
 function getDistricts() {
   return Object.keys(DISTRICT_BLOCKS);
+}
+
+function getLocations() {
+  return DISTRICT_BLOCKS;
 }
 
 function getBlocks(district) {
@@ -188,13 +194,31 @@ function getRegistrationSheet_(ss) {
 }
 
 function ensureRegistrationHeaders_(sheet) {
-  var first = String(sheet.getRange(1, 1).getValue() || '').trim();
-  if (!first || sheet.getLastRow() === 0) {
+  if (sheet.getLastRow() === 0) {
     sheet.getRange(1, 1, 1, REG_HEADERS_.length).setValues([REG_HEADERS_]);
     sheet.setFrozenRows(1);
+    return;
   }
-  if (!sheet.getRange(1, 18).getValue()) sheet.getRange(1, 18).setValue('OMR Roll');
-  if (!sheet.getRange(1, 19).getValue()) sheet.getRange(1, 19).setValue('Year');
+
+  // Read the header row once. Apps Script calls are remote and several small
+  // reads are substantially slower than one batched read.
+  var headers = sheet.getRange(1, 1, 1, REG_HEADERS_.length).getValues()[0];
+  if (!String(headers[0] || '').trim()) {
+    sheet.getRange(1, 1, 1, REG_HEADERS_.length).setValues([REG_HEADERS_]);
+    sheet.setFrozenRows(1);
+    return;
+  }
+
+  var changed = false;
+  if (!headers[17]) {
+    headers[17] = 'OMR Roll';
+    changed = true;
+  }
+  if (!headers[18]) {
+    headers[18] = 'Year';
+    changed = true;
+  }
+  if (changed) sheet.getRange(1, 1, 1, REG_HEADERS_.length).setValues([headers]);
 }
 
 function nextRegSerial_(sheet) {
@@ -307,17 +331,29 @@ function backfillOmrNumbers() {
   var last = sheet.getLastRow();
   if (last < 2) return;
   var regs = sheet.getRange(2, 1, last - 1, 1).getValues();
+  var parsed = regs.map(function (row) {
+    var m = String(row[0] || '').match(/(\d+)$/);
+    return m ? parseInt(m[1], 10) : null;
+  });
+  var maxSerial = 0;
+  for (var i = 0; i < parsed.length; i++) {
+    if (parsed[i] !== null && parsed[i] > maxSerial) maxSerial = parsed[i];
+  }
+  var nextUnparsed = maxSerial;
   var out = [];
-  for (var i = 0; i < regs.length; i++) {
-    var m = String(regs[i][0] || '').match(/(\d+)$/);
-    var n = m ? parseInt(m[1], 10) : (i + 1);
+  for (var j = 0; j < parsed.length; j++) {
+    var n = parsed[j];
+    if (n === null) {
+      nextUnparsed += 1;
+      n = nextUnparsed;
+    }
     out.push([omrFromSerial_(n)]);
   }
   sheet.getRange(2, 18, out.length, 1).setValues(out);
 }
 
-function ensurePaymentsSheet_() {
-  var ss = getSpreadsheet_();
+function ensurePaymentsSheet_(ss) {
+  ss = ss || getSpreadsheet_();
   var sheet = ss.getSheetByName('Payments');
   if (!sheet) {
     sheet = ss.insertSheet('Payments');
@@ -333,29 +369,34 @@ function ensurePaymentsSheet_() {
   return sheet;
 }
 
-function countSchoolStudents_(district, block, school) {
-  var ss = getSpreadsheet_();
-  var sheet = getRegistrationSheet_(ss);
-  if (sheet.getLastRow() < 2) return 0;
-  var values = sheet.getDataRange().getValues();
+function countSchoolStudents_(district, block, school, sheet) {
+  sheet = sheet || getRegistrationSheet_(getSpreadsheet_());
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+
+  // Only District, Block and School are needed (I:K), not the full 19-column row.
+  var values = sheet.getRange(2, 9, lastRow - 1, 3).getValues();
   var n = 0;
-  for (var i = 1; i < values.length; i++) {
-    var sheetSchool = String(values[i][10] || '').trim();
+  for (var i = 0; i < values.length; i++) {
+    var sheetSchool = String(values[i][2] || '').trim();
     if (!sheetSchool) continue;
-    if (district && !locMatch_(values[i][8], district)) continue;
-    if (block && !locMatch_(values[i][9], block)) continue;
+    if (district && !locMatch_(values[i][0], district)) continue;
+    if (block && !locMatch_(values[i][1], block)) continue;
     if (!locMatch_(sheetSchool, school)) continue;
     n++;
   }
   return n;
 }
 
-function sumSchoolPaid_(district, block, school) {
-  var sheet = ensurePaymentsSheet_();
-  if (sheet.getLastRow() < 2) return 0;
-  var values = sheet.getDataRange().getValues();
+function sumSchoolPaid_(district, block, school, sheet) {
+  sheet = sheet || ensurePaymentsSheet_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+
+  // A:G contains every field needed for matching and summing payments.
+  var values = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
   var paid = 0;
-  for (var i = 1; i < values.length; i++) {
+  for (var i = 0; i < values.length; i++) {
     var st = String(values[i][6] || '').trim();
     if (st !== 'Reported' && st !== 'Paid') continue;
     if (district && !locMatch_(values[i][0], district)) continue;
@@ -366,8 +407,8 @@ function sumSchoolPaid_(district, block, school) {
   return paid;
 }
 
-function utrAlreadyUsed_(utr) {
-  var sheet = ensurePaymentsSheet_();
+function utrAlreadyUsed_(utr, sheet) {
+  sheet = sheet || ensurePaymentsSheet_();
   if (sheet.getLastRow() < 2) return false;
   var values = sheet.getRange(2, 9, sheet.getLastRow() - 1, 1).getValues();
   var key = String(utr || '').trim();
@@ -377,9 +418,12 @@ function utrAlreadyUsed_(utr) {
   return false;
 }
 
-function computeSchoolBill_(district, block, school) {
-  var students = countSchoolStudents_(district, block, school);
-  var amountPaid = sumSchoolPaid_(district, block, school);
+function computeSchoolBill_(district, block, school, ss, registrationSheet, paymentsSheet) {
+  ss = ss || getSpreadsheet_();
+  registrationSheet = registrationSheet || getRegistrationSheet_(ss);
+  paymentsSheet = paymentsSheet || ensurePaymentsSheet_(ss);
+  var students = countSchoolStudents_(district, block, school, registrationSheet);
+  var amountPaid = sumSchoolPaid_(district, block, school, paymentsSheet);
   var amountDue = students * FEE_PER_STUDENT - amountPaid;
   if (amountDue < 0) amountDue = 0;
   var status = 'Due';
@@ -471,12 +515,15 @@ function reportSchoolPayment(data) {
     var lock = LockService.getScriptLock();
     lock.waitLock(20000);
     try {
-      if (utrAlreadyUsed_(utr)) {
+      var ss = getSpreadsheet_();
+      var paymentSheet = ensurePaymentsSheet_(ss);
+      if (utrAlreadyUsed_(utr, paymentSheet)) {
         return { ok: false, error: 'This UTR / UPI Ref No is already used / यह UTR पहले से दर्ज है' };
       }
 
       // Recalculate inside the lock so two clerks cannot report the same due twice.
-      var bill = computeSchoolBill_(district, block, school);
+      var registrationSheet = getRegistrationSheet_(ss);
+      var bill = computeSchoolBill_(district, block, school, ss, registrationSheet, paymentSheet);
       if (bill.students < 1) {
         return { ok: false, error: 'No students registered yet for this school' };
       }
@@ -486,9 +533,8 @@ function reportSchoolPayment(data) {
 
       var amount = bill.amountDue;
       var students = bill.students;
-      var sheet = ensurePaymentsSheet_();
       var now = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'M/d/yyyy HH:mm:ss');
-      sheet.appendRow([
+      paymentSheet.appendRow([
         upper_(district),
         upper_(block),
         upper_(school),
@@ -515,7 +561,7 @@ function reportSchoolPayment(data) {
 function rebuildSchoolDues() {
   var ss = getSpreadsheet_();
   var reg = getRegistrationSheet_(ss);
-  var paySheet = ensurePaymentsSheet_();
+  var paySheet = ensurePaymentsSheet_(ss);
   var schools = {};
   var bookRank = { Pending: 0, Packed: 1, Sent: 2 };
 
@@ -538,11 +584,11 @@ function rebuildSchoolDues() {
   }
 
   if (reg.getLastRow() >= 2) {
-    var rows = reg.getDataRange().getValues();
-    for (var i = 1; i < rows.length; i++) {
-      var s = String(rows[i][10] || '').trim();
+    var rows = reg.getRange(2, 9, reg.getLastRow() - 1, 3).getValues();
+    for (var i = 0; i < rows.length; i++) {
+      var s = String(rows[i][2] || '').trim();
       if (!s) continue;
-      ensure(rows[i][8], rows[i][9], s).students++;
+      ensure(rows[i][0], rows[i][1], s).students++;
     }
   }
 

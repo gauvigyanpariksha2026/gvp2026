@@ -9,12 +9,11 @@ This project is now split into two parts:
 - **`site/`** — a plain static website (`index.html` = registration,
   `pay.html` = school bulk payment). No Google Form, no Apps Script
   templating — just HTML/CSS/JS you can host anywhere, including GitHub
-  Pages. It talks to the API via `site/js/api.js`.
+  Pages. It talks to the API via `site/js/api.js`; the shared offline
+  district/block fallback lives in `site/js/locations.js`.
 
-> The old `Code.gs`, `Index.html`, `Pay.html` in the project root are the
-> previous Apps-Script-only version and are no longer used. They're left in
-> place in case you want to compare; delete them yourself whenever you're
-> ready.
+The superseded Apps-Script-only frontend has been removed; `apps-script/`
+and `site/` are the only current application sources.
 
 ## 1. Deploy the Apps Script API
 
@@ -36,10 +35,12 @@ This project is now split into two parts:
 
 ## 2. Point the static site at the API
 
-Open `site/js/api.js` and replace the placeholder:
+Open `site/js/api.js` and set `API_URL` to the deployment you want this site
+to use. The repository currently contains a deployed URL; replace it if you
+create or move to a different Apps Script project:
 
 ```js
-var API_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
+var API_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec';
 ```
 
 with the `/exec` URL you copied. Save the file.

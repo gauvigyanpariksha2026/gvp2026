@@ -138,7 +138,7 @@ select.inp:disabled{
       <span class="fee-pill">सुरक्षित UPI भुगतान</span>
     </div>
 
-    <div class="payment-flow" aria-label="भुगतान के चरण">
+    <div class="payment-flow" role="group" aria-label="भुगतान के चरण">
       <div class="is-active" data-pay-flow="1"><b aria-hidden="true">🏫</b><span><strong>विद्यालय</strong><small>School</small></span></div>
       <i aria-hidden="true"></i>
       <div data-pay-flow="2"><b aria-hidden="true">₹</b><span><strong>राशि</strong><small>Amount</small></span></div>
@@ -164,7 +164,7 @@ select.inp:disabled{
         </div>
         <div class="sm:col-span-2" id="schoolWrap">
           <label class="lbl" for="school">विद्यालय का नाम, गाँव / शहर / School &amp; location <span class="req">*</span></label>
-          <input id="school" class="inp" autocomplete="off"
+          <input id="school" class="inp" type="text" autocomplete="off"
                  placeholder="School name, Village or City"
                  lang="en" autocapitalize="words" spellcheck="false" required>
           <p class="hint">पंजीकरण फॉर्म में लिखा पूरा नाम और स्थान — English only</p>
@@ -191,7 +191,7 @@ select.inp:disabled{
 
       <div id="upiBox" class="hidden mt-6 text-center">
         <p class="lbl"><span class="upi-mark" aria-hidden="true">↗</span> Pay with UPI / यूपीआई से भुगतान करें</p>
-        <div class="qr-frame"><span class="qr-corner qr-tl"></span><span class="qr-corner qr-tr"></span><span class="qr-corner qr-bl"></span><span class="qr-corner qr-br"></span><img id="qrImg" width="240" height="240" alt="UPI QR"></div>
+        <div class="qr-frame"><span class="qr-corner qr-tl"></span><span class="qr-corner qr-tr"></span><span class="qr-corner qr-bl"></span><span class="qr-corner qr-br"></span><img id="qrImg" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" width="240" height="240" alt="UPI QR"></div>
         <p id="upiId" class="mt-3 font-lat text-sm tracking-wider text-ink/70"></p>
         <p class="mt-4">
           <a id="upiLink" class="btn upi-pay-btn" href="#" target="_top" rel="noopener"><span aria-hidden="true">⚡</span> Pay <span aria-hidden="true">↗</span></a>
@@ -210,7 +210,7 @@ select.inp:disabled{
       <div class="grid gap-5 sm:grid-cols-2">
         <div class="sm:col-span-2">
           <label class="lbl" for="payeeName">भुगतानकर्ता का नाम / Payee name <span class="req">*</span></label>
-          <input id="payeeName" class="inp" autocomplete="off" lang="en" autocapitalize="words" spellcheck="false" required>
+          <input id="payeeName" class="inp" type="text" autocomplete="off" lang="en" autocapitalize="words" spellcheck="false" required>
           <p class="hint">English only</p>
         </div>
         <div>
@@ -259,10 +259,10 @@ select.inp:disabled{
     <h2 class="sec">संपर्क करें <span class="sec-en">Need Help?</span></h2>
     <p class="contact-line">परम पूज्य माधव गौ विज्ञान एवं अनुसंधान समिति</p>
     <p class="contact-line mt-1">कार्यालय: 10, संस्कृति मंदिर, अशोक नगर, भीलवाड़ा (राज.)</p>
-    <div class="contact-phone-grid" aria-label="सहायता के मोबाइल नंबर">
-      <a href="tel:+918107268111"><small>संपर्क 01</small><strong>81072 68111</strong><span>Call now</span></a>
-      <a href="tel:+917742010516"><small>संपर्क 02</small><strong>77420 10516</strong><span>Call now</span></a>
-      <a href="tel:+919887028946"><small>संपर्क 03</small><strong>98870 28946</strong><span>Call now</span></a>
+    <div class="contact-phone-grid" role="group" aria-label="सहायता के मोबाइल नंबर">
+      <a href="tel:+918107268111"><small>संपर्क&nbsp;01</small><strong>81072&nbsp;68111</strong><span>Call&nbsp;now</span></a>
+      <a href="tel:+917742010516"><small>संपर्क&nbsp;02</small><strong>77420&nbsp;10516</strong><span>Call&nbsp;now</span></a>
+      <a href="tel:+919887028946"><small>संपर्क&nbsp;03</small><strong>98870&nbsp;28946</strong><span>Call&nbsp;now</span></a>
     </div>
   </section>
 
@@ -284,6 +284,7 @@ select.inp:disabled{
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/animejs@3.2.1/lib/anime.min.js"></script>
+<script src="js/locations.js"></script>
 <script src="js/api.js"></script>
 <script>
 var $=function(id){return document.getElementById(id);};
@@ -347,22 +348,7 @@ function countUp(el,to,duration){
   anime({targets:obj,v:to,duration:duration||700,easing:'easeOutQuad',round:1,update:function(){el.textContent=obj.v;}});
 }
 
-var DISTRICT_BLOCKS = {
-  "Banswara": ["Ghatol", "Chotisarvan", "Talwara", "Garhi", "Anandpuri", "Bagidora", "Ganodha", "Chhoti Sarwa", "Sajjangarh", "Kushalgarh", "Banswara", "Arthuna", "Gangadtalai"],
-  "Dungarpur": ["Bicchiwara", "Dungarpur", "Aspur", "Sagwara", "Simalwara", "Chikhali", "Dovda", "Galiyakot", "Jhonthari", "Sabla", "Paldeval", "Gamdi Ahara"],
-  "Udaipur": ["Gogunda", "Badgaon", "Mavli", "Bhinder", "Girwa", "Kotra", "Nayagaon", "Vallabhnagar", "Khemli", "Devla", "Jhadol", "Kherwara", "Rishabhdev", "Phalasiya", "Sayra", "Kurabad"],
-  "Salumbar": ["Sarada", "Salumbar", "Lasadiya", "Semari", "Jhallara", "Jaisamand"],
-  "Rajsamand": ["Bhim", "Deogarh", "Amet", "Kumbhalgarh", "Khamnor", "Rajsamand", "Railmagra", "Delwada"],
-  "Chittorgarh": ["Rashmi", "Gangrar", "Begun", "Bhainsroadgarh", "Chittorgarh", "Kapasan", "Bhopal Sagar", "Dungla", "Bhadesar", "Nimbahera", "Badi Sadri"],
-  "Pratapgarh": ["Peepalkhoot", "Dhariyawad", "Chhoti Sadri", "Pratapgarh", "Arnod", "Dalot", "Suhagpura", "Dhamotar"],
-  "Bhilwara": ["Asind", "Hurda", "Shahpura", "Banera", "Mandal", "Raipur", "Badnor", "Kareda", "Sahada", "Suwana", "Kotri", "Jahajpur", "Mandalgarh", "Bijoliya"],
-  "Ajmer": ["Kishangarh", "Arain", "Sri Nagar", "Pisangan", "Bhinai", "Kekri", "Ajmer (U)", "Sarwar", "Ajmer Rural", "Sawar"],
-  "Beawar": ["Jaitaran", "Raipur", "Jawaja", "Masooda", "Bhim (Beawar)", "Badnor (Beawar)"],
-  "Bundi": ["Hindoli", "K.Patan", "Nainwa", "Talera", "Bundi"],
-  "Kota": ["Itawa", "Sultanpur", "Ladpura", "Khairabad", "Sangod", "Kota"],
-  "Baran": ["Baran", "Anta", "Atru", "Chhabra", "Chhipabarod", "Kishanganj", "Shahbad", "Mangrol"],
-  "Jhalawar": ["Khanpur", "Jhalarapatan", "Manoharthana", "Bakani", "Sunel", "Dag", "Aklera", "Bhawanimandi"]
-};
+var DISTRICT_BLOCKS = typeof GVP_LOCATIONS !== 'undefined' ? GVP_LOCATIONS : {};
 
 var blockEl=$('block'), districtEl=$('district');
 Object.keys(DISTRICT_BLOCKS).forEach(function(n){
@@ -370,17 +356,24 @@ Object.keys(DISTRICT_BLOCKS).forEach(function(n){
 });
 
 if(apiReady()){
-  GVP_API.get('getDistricts').then(function(res){
-    var keys=res&&res.ok?res.data:null;
+  GVP_API.get('getLocations').then(function(res){
+    var locations=res&&res.ok&&res.data&&typeof res.data==='object'?res.data:null;
+    var keys=locations?Object.keys(locations):null;
     if(!keys || !keys.length) return;
     var cur=districtEl.value;
+    var curBlock=blockEl.value;
+    DISTRICT_BLOCKS=locations;
     districtEl.innerHTML='';
     var first=document.createElement('option'); first.value=''; first.textContent='— चुनें —';
     districtEl.appendChild(first);
     keys.forEach(function(n){
       var o=document.createElement('option'); o.value=n; o.textContent=n; districtEl.appendChild(o);
     });
-    if(cur && keys.indexOf(cur)>-1) districtEl.value=cur;
+    if(cur && keys.indexOf(cur)>-1){
+      districtEl.value=cur;
+      fillBlocks(cur);
+      if((DISTRICT_BLOCKS[cur]||[]).indexOf(curBlock)>-1) blockEl.value=curBlock;
+    }
   }).catch(function(){ /* fall back silently to the local district list already rendered */ });
 }
 
@@ -424,6 +417,11 @@ $('payeeName').addEventListener('input',function(){
 });
 
 var LAST_BILL=null;
+var LAST_BILL_KEY='';
+var BILL_REQUEST_ID=0;
+function schoolKey(f){
+  return [f.district,f.block,f.school].join('|').toLowerCase();
+}
 function setPayFlow(stage){
   document.querySelectorAll('[data-pay-flow]').forEach(function(item){
     var n=Number(item.getAttribute('data-pay-flow'));
@@ -432,9 +430,13 @@ function setPayFlow(stage){
   });
 }
 function hideBill(){
+  BILL_REQUEST_ID++;
   LAST_BILL=null;
+  LAST_BILL_KEY='';
   hide($('billBox')); hide($('payForm')); hide($('billErr')); hide($('done'));
   hide($('upiBox')); hide($('needsUpiBox')); hide($('zeroNote')); hide($('billPaid'));
+  $('billBtn').disabled=false; $('billSpin').classList.add('hidden');
+  $('billTxt').textContent='See amount / राशि देखें';
   setPayFlow(1);
 }
 
@@ -457,10 +459,12 @@ $('billBtn').addEventListener('click',function(){
   else if(!PLACE_EN.test(f.school)){errs.push('विद्यालय का नाम अंग्रेज़ी में लिखें / Write school name in English');bad($('school'));}
   if(errs.length){show($('billErr'),errs[0]);shakeField(document.querySelector('.err'));return;}
 
+  var requestId=++BILL_REQUEST_ID;
   $('billBtn').disabled=true; $('billSpin').classList.remove('hidden');
   $('billTxt').textContent='Loading…';
 
   function fail(msg){
+    if(requestId!==BILL_REQUEST_ID) return;
     $('billBtn').disabled=false; $('billSpin').classList.add('hidden');
     $('billTxt').textContent='See amount / राशि देखें';
     show($('billErr'),msg);
@@ -473,17 +477,20 @@ $('billBtn').addEventListener('click',function(){
 
   GVP_API.get('getSchoolBill',f)
     .then(function(res){
+      // Ignore a response for fields the user has changed while it was loading.
+      if(requestId!==BILL_REQUEST_ID) return;
       $('billBtn').disabled=false; $('billSpin').classList.add('hidden');
       $('billTxt').textContent='See amount / राशि देखें';
       if(!res||!res.ok){show($('billErr'),(res&&res.error)||'Could not load bill');return;}
       LAST_BILL=res;
+      LAST_BILL_KEY=schoolKey(f);
       show($('billBox'));
       setPayFlow(2);
       if(typeof anime!=='undefined'){
         anime({targets:'#billBox',translateY:[10,0],opacity:[0,1],duration:450,easing:'easeOutQuad'});
       }
       var total=res.students*res.fee;
-      $('billLine').innerHTML='<span id="billStudents"></span> students × '+rupee(res.fee)+' = ₹<span id="billTotal"></span> due';
+      $('billLine').innerHTML='<span id="billStudents"></span> students × '+rupee(res.fee)+' = ₹<span id="billTotal"></span> total fee';
       countUp($('billStudents'),res.students,500);
       countUp($('billTotal'),total,700);
       if(res.amountPaid>0){
@@ -519,8 +526,11 @@ $('billBtn').addEventListener('click',function(){
 
 $('payBtn').addEventListener('click',function(){
   clean(); hide($('formErr'));
-  if(!LAST_BILL||LAST_BILL.amountDue<=0){show($('formErr'),'See the amount first');return;}
   var f=schoolFields();
+  if(!LAST_BILL||LAST_BILL.amountDue<=0||LAST_BILL_KEY!==schoolKey(f)){
+    show($('formErr'),'School details changed. Please check the amount again.');
+    return;
+  }
   var payeeName=$('payeeName').value.trim();
   var utr=$('utr').value.replace(/\s+/g,'').trim();
   var mobile=$('mobile').value.trim();

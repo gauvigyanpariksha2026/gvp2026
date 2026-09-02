@@ -150,7 +150,7 @@ select.inp:disabled{
       <span class="fee-pill">₹30 · कक्षा 8–12</span>
     </div>
 
-    <a href="pay.html" class="payment-banner" style="margin-top:0;margin-bottom:1.5rem">
+    <a href="pay.html" class="payment-banner registration-payment-banner">
       <span>
         <span class="pb-title block">विद्यालय शुल्क भुगतान / School Bulk Payment</span>
         <span class="pb-sub block">₹30 प्रति विद्यार्थी — एक साथ जमा करें</span>
@@ -160,7 +160,7 @@ select.inp:disabled{
 
     <div id="loadErr" class="hidden mb-6 rounded-lg border border-terra/40 bg-terra/10 px-4 py-3 text-sm"></div>
 
-    <div class="form-progress" aria-label="पंजीकरण के पाँच चरण">
+    <div class="form-progress" role="group" aria-label="पंजीकरण के पाँच चरण">
       <div class="form-progress-head">
         <span>फॉर्म प्रगति <small>Form progress</small></span>
         <strong id="progressCount" aria-live="polite">0 / 5</strong>
@@ -181,12 +181,12 @@ select.inp:disabled{
       <div class="grid gap-5 sm:grid-cols-2">
         <div class="sm:col-span-2">
           <label class="lbl" for="name">छात्र का पूरा नाम <span class="req">*</span></label>
-          <input id="name" class="inp" autocomplete="name" lang="en" autocapitalize="words" spellcheck="false" required>
+          <input id="name" class="inp" type="text" autocomplete="name" lang="en" autocapitalize="words" spellcheck="false" required>
           <p class="hint">English only, as in school records</p>
         </div>
         <div>
           <label class="lbl" for="father">पिता का नाम <span class="req">*</span></label>
-          <input id="father" class="inp" lang="en" autocapitalize="words" spellcheck="false" required>
+          <input id="father" class="inp" type="text" lang="en" autocapitalize="words" spellcheck="false" required>
           <p class="hint">English only</p>
         </div>
         <div>
@@ -240,7 +240,7 @@ select.inp:disabled{
           <div class="school-location-grid">
             <div>
               <label class="lbl" for="school">विद्यालय का नाम, गाँव / शहर <span class="req">*</span></label>
-              <input id="school" class="inp" autocomplete="off"
+              <input id="school" class="inp" type="text" autocomplete="off"
                      placeholder="School name, Village or City"
                      lang="en" autocapitalize="words" spellcheck="false" required>
               <p class="hint">Example: Govt Senior Secondary School, Bhilwara</p>
@@ -311,7 +311,9 @@ select.inp:disabled{
 
     <div class="exam-story">
       <div class="exam-poster-frame">
-        <img class="exam-poster-thumb" src="img/hero-title.jpeg" alt="गौ विज्ञान परीक्षा — ज्ञान भी, सेवा भी, संस्कार भी" loading="lazy" tabindex="0" role="button" aria-label="पोस्टर को बड़े आकार में देखें">
+        <button class="exam-poster-thumb" type="button" aria-label="पोस्टर को बड़े आकार में देखें">
+          <img src="img/hero-title.jpeg" alt="गौ विज्ञान परीक्षा — ज्ञान भी, सेवा भी, संस्कार भी" loading="lazy">
+        </button>
       </div>
       <div class="exam-story-copy">
         <span class="exam-badge">कक्षा 8 से 12</span>
@@ -322,7 +324,7 @@ select.inp:disabled{
           <div><strong>2 चरण</strong><span>परीक्षा प्रारूप</span></div>
           <div><strong>₹21,000</strong><span>शीर्ष पुरस्कार</span></div>
         </div>
-        <div class="exam-quick-info" aria-label="परीक्षा की मुख्य जानकारी">
+        <div class="exam-quick-info" role="group" aria-label="परीक्षा की मुख्य जानकारी">
           <div><span aria-hidden="true">📝</span><p><strong>वस्तुनिष्ठ परीक्षा</strong><small>प्रथम चरण OMR आधारित</small></p></div>
           <div><span aria-hidden="true">📍</span><p><strong>विद्यालय से जिला तक</strong><small>चयन के बाद दूसरा चरण</small></p></div>
           <div><span aria-hidden="true">🌱</span><p><strong>ज्ञान और संस्कार</strong><small>गौ, कृषि और पर्यावरण की समझ</small></p></div>
@@ -366,12 +368,12 @@ select.inp:disabled{
           <p>विद्यालय में पंजीकृत विद्यार्थियों की संख्या के अनुसार प्रथम चरण के शीर्ष विद्यार्थी चयनित होंगे।</p>
         </div>
       </div>
-      <div class="selection-rules" role="list" aria-label="विद्यालय-वार चयन नियम">
-        <div role="listitem"><strong>1–100</strong><span>शीर्ष 2 विद्यार्थी</span></div>
-        <div role="listitem"><strong>101–150</strong><span>शीर्ष 3 विद्यार्थी</span></div>
-        <div role="listitem"><strong>151–200</strong><span>शीर्ष 4 विद्यार्थी</span></div>
-        <div role="listitem"><strong>हर अतिरिक्त 50</strong><span>1 और विद्यार्थी</span></div>
-      </div>
+      <ul class="selection-rules" aria-label="विद्यालय-वार चयन नियम">
+        <li><strong>1–100</strong><span>शीर्ष 2 विद्यार्थी</span></li>
+        <li><strong>101–150</strong><span>शीर्ष 3 विद्यार्थी</span></li>
+        <li><strong>151–200</strong><span>शीर्ष 4 विद्यार्थी</span></li>
+        <li><strong>हर अतिरिक्त 50</strong><span>1 और विद्यार्थी</span></li>
+      </ul>
     </div>
 
     <div class="exam-detail-grid">
@@ -416,7 +418,7 @@ select.inp:disabled{
         <p class="form-kicker">Official study companion</p>
         <h2>एक पुस्तक, पूरी तैयारी</h2>
         <p>समिति द्वारा प्रकाशित आधिकारिक <strong>“गौ विज्ञान”</strong> अध्ययन पुस्तक में परीक्षा से जुड़े आध्यात्मिक, कृषि, पर्यावरण और सामान्य ज्ञान के विषय सरल रूप में दिए गए हैं।</p>
-        <div class="study-chips" aria-label="पुस्तक के मुख्य विषय">
+        <div class="study-chips" role="group" aria-label="पुस्तक के मुख्य विषय">
           <span>गौ संस्कृति</span><span>कृषि</span><span>पर्यावरण</span><span>सामान्य ज्ञान</span>
         </div>
       </div>
@@ -434,7 +436,7 @@ select.inp:disabled{
       <p>यह सिर्फ प्रश्नों के उत्तर देने की परीक्षा नहीं—यह अपनी जड़ों, विज्ञान और भविष्य को जोड़ने वाली सीखने की यात्रा है।</p>
     </div>
 
-    <div class="why-reasons" aria-label="परीक्षा के उद्देश्य">
+    <div class="why-reasons" role="group" aria-label="परीक्षा के उद्देश्य">
       <article><b>01</b><span>गौपालन और गौ उत्पादों से जुड़े वैज्ञानिक विषयों की समझ बढ़ाना।</span></article>
       <article><b>02</b><span>देशी गाय, कृषि और ग्रामीण जीवन से जुड़े ज्ञान के प्रति जागरूकता लाना।</span></article>
       <article><b>03</b><span>भारतीय संस्कृति में गाय के महत्व को नई पीढ़ी तक पहुँचाना।</span></article>
@@ -461,7 +463,7 @@ select.inp:disabled{
         <p>गोबर-गोमूत्र से जैविक खेती तक, डेयरी उद्योग से लाखों परिवारों की आजीविका तक — गौ से जुड़ी असली आर्थिक ताकत जानें।</p>
       </div>
       <div class="benefit-card gold">
-        <p class="lbl mb-1"><span class="info-icon gold"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4a1 1 0 0 0-1 1c0 2.5 1.5 4 4 4M17 6h3a1 1 0 0 1 1 1c0 2.5-1.5 4-4 4"/></svg></span>पुरस्कार व पहचान जीतें <span class="sec-en">Prizes & Recognition</span></p>
+        <p class="lbl mb-1"><span class="info-icon gold"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4a1 1 0 0 0-1 1c0 2.5 1.5 4 4 4M17 6h3a1 1 0 0 1 1 1c0 2.5-1.5 4-4 4"/></svg></span>पुरस्कार व पहचान जीतें <span class="sec-en">Prizes &amp; Recognition</span></p>
         <p>प्रांत स्तर पर ट्रॉफी और ₹21,000 तक नकद पुरस्कार — केवल ₹30 के पंजीकरण शुल्क में एक बड़ा अवसर।</p>
       </div>
       <div class="benefit-card tulsi">
@@ -499,37 +501,37 @@ select.inp:disabled{
       <button class="flash-card" type="button" aria-pressed="false" aria-label="कार्ड पलटें: गौ विज्ञान क्या है?">
         <span class="flash-card-inner">
           <span class="flash-face flash-front"><img src="img/topic-06.jpeg" alt="" loading="lazy"><span class="flash-shade"></span><span class="flash-front-copy"><small>01 · परिचय</small><strong>गौ विज्ञान क्या है?</strong><em>कार्ड पलटें ↗</em></span></span>
-          <span class="flash-face flash-back"><small>01</small><strong>गौ विज्ञान</strong><p>गाय से जुड़े पर्यावरण, कृषि, पोषण और सांस्कृतिक विषयों को समझने की एक सीखने वाली यात्रा।</p><em>चित्र देखने के लिए पलटें ↩</em></span>
+          <span class="flash-face flash-back"><small>01</small><strong>गौ विज्ञान</strong><span class="flash-description">गाय से जुड़े पर्यावरण, कृषि, पोषण और सांस्कृतिक विषयों को समझने की एक सीखने वाली यात्रा।</span><em>चित्र देखने के लिए पलटें ↩</em></span>
         </span>
       </button>
       <button class="flash-card" type="button" aria-pressed="false" aria-label="कार्ड पलटें: पंचगव्य">
         <span class="flash-card-inner">
           <span class="flash-face flash-front"><img src="img/topic-03.jpeg" alt="" loading="lazy"><span class="flash-shade"></span><span class="flash-front-copy"><small>02 · परंपरा</small><strong>पंचगव्य</strong><em>कार्ड पलटें ↗</em></span></span>
-          <span class="flash-face flash-back"><small>02</small><strong>पाँच पारंपरिक घटक</strong><p>दूध, दही, घी, गोमूत्र और गोबर से जुड़ी पारंपरिक अवधारणाओं तथा उनके उपयोगों का परिचय।</p><em>चित्र देखने के लिए पलटें ↩</em></span>
+          <span class="flash-face flash-back"><small>02</small><strong>पाँच पारंपरिक घटक</strong><span class="flash-description">दूध, दही, घी, गोमूत्र और गोबर से जुड़ी पारंपरिक अवधारणाओं तथा उनके उपयोगों का परिचय।</span><em>चित्र देखने के लिए पलटें ↩</em></span>
         </span>
       </button>
       <button class="flash-card" type="button" aria-pressed="false" aria-label="कार्ड पलटें: जैविक खेती">
         <span class="flash-card-inner">
           <span class="flash-face flash-front"><img src="img/topic-08.jpeg" alt="" loading="lazy"><span class="flash-shade"></span><span class="flash-front-copy"><small>03 · पर्यावरण</small><strong>जैविक खेती</strong><em>कार्ड पलटें ↗</em></span></span>
-          <span class="flash-face flash-back"><small>03</small><strong>मिट्टी और खेती</strong><p>गोबर आधारित खाद, संसाधनों के पुनः उपयोग और मिट्टी की देखभाल जैसे विषय परीक्षा का उपयोगी हिस्सा हैं।</p><em>चित्र देखने के लिए पलटें ↩</em></span>
+          <span class="flash-face flash-back"><small>03</small><strong>मिट्टी और खेती</strong><span class="flash-description">गोबर आधारित खाद, संसाधनों के पुनः उपयोग और मिट्टी की देखभाल जैसे विषय परीक्षा का उपयोगी हिस्सा हैं।</span><em>चित्र देखने के लिए पलटें ↩</em></span>
         </span>
       </button>
       <button class="flash-card" type="button" aria-pressed="false" aria-label="कार्ड पलटें: स्थानीय नस्लें">
         <span class="flash-card-inner">
           <span class="flash-face flash-front"><img src="img/topic-11.jpeg" alt="" loading="lazy"><span class="flash-shade"></span><span class="flash-front-copy"><small>04 · विविधता</small><strong>स्थानीय नस्लें</strong><em>कार्ड पलटें ↗</em></span></span>
-          <span class="flash-face flash-back"><small>04</small><strong>पहचान और अनुकूलन</strong><p>स्थानीय नस्लों की पहचान, उनकी विशेषताओं और अलग-अलग क्षेत्रों से उनके संबंध को जानें।</p><em>चित्र देखने के लिए पलटें ↩</em></span>
+          <span class="flash-face flash-back"><small>04</small><strong>पहचान और अनुकूलन</strong><span class="flash-description">स्थानीय नस्लों की पहचान, उनकी विशेषताओं और अलग-अलग क्षेत्रों से उनके संबंध को जानें।</span><em>चित्र देखने के लिए पलटें ↩</em></span>
         </span>
       </button>
       <button class="flash-card" type="button" aria-pressed="false" aria-label="कार्ड पलटें: ग्रामीण आजीविका">
         <span class="flash-card-inner">
           <span class="flash-face flash-front"><img src="img/topic-13.jpeg" alt="" loading="lazy"><span class="flash-shade"></span><span class="flash-front-copy"><small>05 · समाज</small><strong>ग्रामीण आजीविका</strong><em>कार्ड पलटें ↗</em></span></span>
-          <span class="flash-face flash-back"><small>05</small><strong>स्थानीय अर्थव्यवस्था</strong><p>डेयरी, जैविक उत्पाद और पशुपालन ग्रामीण परिवारों की आजीविका से कैसे जुड़ते हैं, यह समझें।</p><em>चित्र देखने के लिए पलटें ↩</em></span>
+          <span class="flash-face flash-back"><small>05</small><strong>स्थानीय अर्थव्यवस्था</strong><span class="flash-description">डेयरी, जैविक उत्पाद और पशुपालन ग्रामीण परिवारों की आजीविका से कैसे जुड़ते हैं, यह समझें।</span><em>चित्र देखने के लिए पलटें ↩</em></span>
         </span>
       </button>
       <button class="flash-card" type="button" aria-pressed="false" aria-label="कार्ड पलटें: परीक्षा कैसे पढ़ें?">
         <span class="flash-card-inner">
           <span class="flash-face flash-front"><img src="img/topic-01.jpeg" alt="" loading="lazy"><span class="flash-shade"></span><span class="flash-front-copy"><small>06 · तैयारी</small><strong>परीक्षा कैसे पढ़ें?</strong><em>कार्ड पलटें ↗</em></span></span>
-          <span class="flash-face flash-back"><small>06</small><strong>सरल तैयारी</strong><p>अध्ययन पुस्तक के मुख्य बिंदु पढ़ें, छोटे नोट बनाएँ और रोज़ कुछ प्रश्नों से अपना अभ्यास जाँचें।</p><em>चित्र देखने के लिए पलटें ↩</em></span>
+          <span class="flash-face flash-back"><small>06</small><strong>सरल तैयारी</strong><span class="flash-description">अध्ययन पुस्तक के मुख्य बिंदु पढ़ें, छोटे नोट बनाएँ और रोज़ कुछ प्रश्नों से अपना अभ्यास जाँचें।</span><em>चित्र देखने के लिए पलटें ↩</em></span>
         </span>
       </button>
     </div>
@@ -542,9 +544,9 @@ select.inp:disabled{
       <span>📞 सहायता चाहिए?</span>
       <small>कार्यालय: 10, संस्कृति मंदिर, अशोक नगर, भीलवाड़ा (राज.) · पंजीयन, जिला, ब्लॉक या भुगतान से जुड़ी जानकारी के लिए संपर्क करें।</small>
     </div>
-    <a href="tel:+918107268111">81072 68111</a>
-    <a href="tel:+917742010516">77420 10516</a>
-    <a href="tel:+919887028946">98870 28946</a>
+    <a href="tel:+918107268111">81072&nbsp;68111</a>
+    <a href="tel:+917742010516">77420&nbsp;10516</a>
+    <a href="tel:+919887028946">98870&nbsp;28946</a>
   </div>
   <p class="mt-3 text-center font-lat text-[11px] tracking-[0.25em] text-ink/40">GAU VIGYAN PARIKSHA · 2026</p>
   </footer>
@@ -557,6 +559,7 @@ select.inp:disabled{
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/animejs@3.2.1/lib/anime.min.js"></script>
+<script src="js/locations.js"></script>
 <script src="js/api.js"></script>
 <script>
 /* ---------- compact poster with crisp tap-to-read view ---------- */
@@ -568,7 +571,6 @@ select.inp:disabled{
   function open(){ box.hidden=false; document.body.classList.add('poster-open'); close.focus(); }
   function shut(){ box.hidden=true; document.body.classList.remove('poster-open'); thumb.focus(); }
   thumb.addEventListener('click',open);
-  thumb.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); } });
   close.addEventListener('click',shut);
   box.addEventListener('click',function(e){ if(e.target===box) shut(); });
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&!box.hidden) shut(); });
@@ -676,7 +678,6 @@ select.inp:disabled{
   originals.forEach(function(img){
     var clone=img.cloneNode(true);
     clone.setAttribute('aria-hidden','true');
-    clone.removeAttribute('loading');
     gallery.appendChild(clone);
   });
   var track=document.createElement('div');
@@ -718,22 +719,7 @@ digitsOnly('mobile',10);
 })();
 
 /* ---------- districts / blocks (local, no server wait) ---------- */
-var DISTRICT_BLOCKS = {
-  "Banswara": ["Ghatol", "Chotisarvan", "Talwara", "Garhi", "Anandpuri", "Bagidora", "Ganodha", "Chhoti Sarwa", "Sajjangarh", "Kushalgarh", "Banswara", "Arthuna", "Gangadtalai"],
-  "Dungarpur": ["Bicchiwara", "Dungarpur", "Aspur", "Sagwara", "Simalwara", "Chikhali", "Dovda", "Galiyakot", "Jhonthari", "Sabla", "Paldeval", "Gamdi Ahara"],
-  "Udaipur": ["Gogunda", "Badgaon", "Mavli", "Bhinder", "Girwa", "Kotra", "Nayagaon", "Vallabhnagar", "Khemli", "Devla", "Jhadol", "Kherwara", "Rishabhdev", "Phalasiya", "Sayra", "Kurabad"],
-  "Salumbar": ["Sarada", "Salumbar", "Lasadiya", "Semari", "Jhallara", "Jaisamand"],
-  "Rajsamand": ["Bhim", "Deogarh", "Amet", "Kumbhalgarh", "Khamnor", "Rajsamand", "Railmagra", "Delwada"],
-  "Chittorgarh": ["Rashmi", "Gangrar", "Begun", "Bhainsroadgarh", "Chittorgarh", "Kapasan", "Bhopal Sagar", "Dungla", "Bhadesar", "Nimbahera", "Badi Sadri"],
-  "Pratapgarh": ["Peepalkhoot", "Dhariyawad", "Chhoti Sadri", "Pratapgarh", "Arnod", "Dalot", "Suhagpura", "Dhamotar"],
-  "Bhilwara": ["Asind", "Hurda", "Shahpura", "Banera", "Mandal", "Raipur", "Badnor", "Kareda", "Sahada", "Suwana", "Kotri", "Jahajpur", "Mandalgarh", "Bijoliya"],
-  "Ajmer": ["Kishangarh", "Arain", "Sri Nagar", "Pisangan", "Bhinai", "Kekri", "Ajmer (U)", "Sarwar", "Ajmer Rural", "Sawar"],
-  "Beawar": ["Jaitaran", "Raipur", "Jawaja", "Masooda", "Bhim (Beawar)", "Badnor (Beawar)"],
-  "Bundi": ["Hindoli", "K.Patan", "Nainwa", "Talera", "Bundi"],
-  "Kota": ["Itawa", "Sultanpur", "Ladpura", "Khairabad", "Sangod", "Kota"],
-  "Baran": ["Baran", "Anta", "Atru", "Chhabra", "Chhipabarod", "Kishanganj", "Shahbad", "Mangrol"],
-  "Jhalawar": ["Khanpur", "Jhalarapatan", "Manoharthana", "Bakani", "Sunel", "Dag", "Aklera", "Bhawanimandi"]
-};
+var DISTRICT_BLOCKS = typeof GVP_LOCATIONS !== 'undefined' ? GVP_LOCATIONS : {};
 
 var blockEl=$('block'), districtEl=$('district');
 Object.keys(DISTRICT_BLOCKS).forEach(function(n){
@@ -741,17 +727,24 @@ Object.keys(DISTRICT_BLOCKS).forEach(function(n){
 });
 
 if(apiReady()){
-  GVP_API.get('getDistricts').then(function(res){
-    var keys=res&&res.ok?res.data:null;
+  GVP_API.get('getLocations').then(function(res){
+    var locations=res&&res.ok&&res.data&&typeof res.data==='object'?res.data:null;
+    var keys=locations?Object.keys(locations):null;
     if(!keys || !keys.length) return;
     var cur=districtEl.value;
+    var curBlock=blockEl.value;
+    DISTRICT_BLOCKS=locations;
     districtEl.innerHTML='';
     var first=document.createElement('option'); first.value=''; first.textContent='— चुनें —';
     districtEl.appendChild(first);
     keys.forEach(function(n){
       var o=document.createElement('option'); o.value=n; o.textContent=n; districtEl.appendChild(o);
     });
-    if(cur && keys.indexOf(cur)>-1) districtEl.value=cur;
+    if(cur && keys.indexOf(cur)>-1){
+      districtEl.value=cur;
+      fillBlocks(cur);
+      if((DISTRICT_BLOCKS[cur]||[]).indexOf(curBlock)>-1) blockEl.value=curBlock;
+    }
   }).catch(function(){ /* fall back silently to the local district list already rendered */ });
 }
 
