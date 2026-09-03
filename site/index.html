@@ -301,7 +301,12 @@ select.inp:disabled{
     <p class="mt-2 text-sm text-ink/70 done-item">OMR रोल नंबर सुरक्षित रखें। परीक्षा की शीट पर यही अंकित करें।</p>
     <p id="omrNo" class="mt-5 inline-block rounded-lg border border-gold/50 bg-sand px-5 py-2 font-lat text-2xl tracking-[0.28em] done-item"></p>
     <p class="mt-3 text-sm text-ink/55 done-item">पंजीकरण क्रमांक: <span id="regNo" class="font-lat tracking-wider"></span></p>
+    <table id="doneSummary" class="done-item info-table mt-6 text-left" style="max-width:22rem;margin-left:auto;margin-right:auto"></table>
     <p class="thanks-note done-item">धन्यवाद! गौ विज्ञान परीक्षा में भाग लेकर आपने गौ माता के प्रति अपने सम्मान और जिज्ञासा को दर्शाया है। यह प्रयास सराहनीय है — परीक्षा हेतु हार्दिक शुभकामनाएं।</p>
+    <p class="mt-6 done-item">
+      <button id="printConfirmBtn" type="button" class="btn">पुष्टि सहेजें / Save confirmation</button>
+    </p>
+    <p class="mt-2 text-xs text-ink/50 done-item">इसे प्रिंट करें या PDF के रूप में सहेजें / Print it or save as PDF</p>
   </div>
 
   <!-- ===== EXAM DETAILS (from official notice) ===== -->
@@ -848,6 +853,23 @@ $('submitBtn').addEventListener('click',function(){
       var done=$('done'); done.classList.remove('hidden');
       $('omrNo').textContent=res.omrNo || '';
       $('regNo').textContent=res.regNo;
+      var summaryRows=[
+        ['नाम / Name',data.name],
+        ['पिता / Father',data.father],
+        ['कक्षा / Class',data.cls],
+        ['विद्यालय / School',data.school],
+        ['जिला / ब्लॉक',data.district+' / '+data.block],
+        ['मोबाइल / Mobile',data.mobile]
+      ];
+      var summaryTable=$('doneSummary');
+      summaryTable.innerHTML='';
+      summaryRows.forEach(function(r){
+        var tr=document.createElement('tr');
+        var th=document.createElement('td'); th.textContent=r[0];
+        var td=document.createElement('td'); td.textContent=r[1];
+        tr.appendChild(th); tr.appendChild(td);
+        summaryTable.appendChild(tr);
+      });
       window.scrollTo({top:0,behavior:'smooth'});
       var doneItems=done.querySelectorAll('.done-item');
       if(typeof anime!=='undefined'){
@@ -866,6 +888,14 @@ $('submitBtn').addEventListener('click',function(){
       $('btnTxt').textContent='पंजीकरण जमा करें';
       show($('formErr'),'सर्वर त्रुटि: '+errorMessage(e,'server error'));
     });
+});
+
+$('printConfirmBtn').addEventListener('click',function(){
+  document.body.classList.add('print-confirmation');
+  window.print();
+});
+window.addEventListener('afterprint',function(){
+  document.body.classList.remove('print-confirmation');
 });
 </script>
 </body>
