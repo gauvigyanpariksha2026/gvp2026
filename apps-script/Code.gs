@@ -28,10 +28,12 @@ var UPI_VPA = 'SHREEDEVNARAYAN@SBI';
 var UPI_NAME = 'SHREE DEV NARAYAN GOSHALA SAM';
 var ACADEMIC_YEAR = '2026';
 
+// Only the fields the current form actually collects. (Mother, DOB, PIN,
+// Address, WhatsApp, Email were dropped from the form and are no longer
+// reserved as columns — see ensureRegistrationHeaders_.)
 var REG_HEADERS_ = [
-  'Reg', 'Time', 'Name', 'Father', 'Mother', 'Gender', 'DOB', 'Class',
-  'District', 'Block', 'School', 'Village', 'PIN', 'Address',
-  'Mobile', 'WhatsApp', 'Email', 'OMR Roll', 'Year'
+  'Reg', 'Time', 'Name', 'Father', 'Gender', 'Class',
+  'District', 'Block', 'School', 'Village', 'Mobile', 'OMR Roll', 'Year'
 ];
 var PAY_HEADERS_ = ['District', 'Block', 'School', 'Students', 'Amount Due', 'Amount Paid', 'Status', 'Payer Name', 'UTR', 'Payer Mobile', 'Reported At', 'Books'];
 var DUES_HEADERS_ = ['District', 'Block', 'School', 'Students', 'Amount', 'Paid', 'Balance', 'Status', 'Books'];
@@ -193,6 +195,9 @@ function getRegistrationSheet_(ss) {
   return sheets[0];
 }
 
+// Keeps row 1 exactly equal to REG_HEADERS_ across columns 1..REG_HEADERS_.length.
+// This only ever touches that fixed width — it never recreates columns beyond
+// it, so deleting an extra column from the sheet stays deleted.
 function ensureRegistrationHeaders_(sheet) {
   if (sheet.getLastRow() === 0) {
     sheet.getRange(1, 1, 1, REG_HEADERS_.length).setValues([REG_HEADERS_]);
@@ -200,25 +205,14 @@ function ensureRegistrationHeaders_(sheet) {
     return;
   }
 
-  // Read the header row once. Apps Script calls are remote and several small
-  // reads are substantially slower than one batched read.
-  var headers = sheet.getRange(1, 1, 1, REG_HEADERS_.length).getValues()[0];
-  if (!String(headers[0] || '').trim()) {
+  var current = sheet.getRange(1, 1, 1, REG_HEADERS_.length).getValues()[0];
+  var matches = REG_HEADERS_.every(function (h, i) {
+    return String(current[i] || '').trim() === h;
+  });
+  if (!matches) {
     sheet.getRange(1, 1, 1, REG_HEADERS_.length).setValues([REG_HEADERS_]);
     sheet.setFrozenRows(1);
-    return;
   }
-
-  var changed = false;
-  if (!headers[17]) {
-    headers[17] = 'OMR Roll';
-    changed = true;
-  }
-  if (!headers[18]) {
-    headers[18] = 'Year';
-    changed = true;
-  }
-  if (changed) sheet.getRange(1, 1, 1, REG_HEADERS_.length).setValues([headers]);
 }
 
 function scanMaxRegSerial_(sheet) {
@@ -255,13 +249,13 @@ function nextRegSerial_(sheet) {
 function duplicateRegistrationExists_(sheet, name, father, mobile) {
   var last = sheet.getLastRow();
   if (last < 2) return false;
-  // C:O covers Name(0), Father(1) ... Mobile(12) in one contiguous read.
-  var values = sheet.getRange(2, 3, last - 1, 13).getValues();
+  // C:K covers Name(0), Father(1) ... Mobile(8) in one contiguous read.
+  var values = sheet.getRange(2, 3, last - 1, 9).getValues();
   var nameKey = compactKey_(name);
   var fatherKey = compactKey_(father);
   var mobileKey = String(mobile || '').trim();
   for (var i = 0; i < values.length; i++) {
-    if (String(values[i][12] || '').trim() !== mobileKey) continue;
+    if (String(values[i][8] || '').trim() !== mobileKey) continue;
     if (compactKey_(values[i][0]) === nameKey && compactKey_(values[i][1]) === fatherKey) return true;
   }
   return false;
@@ -325,26 +319,19 @@ function submitRegistration(data) {
       var omrNo = omrFromSerial_(nextNum);
       var now = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'M/d/yyyy HH:mm:ss');
 
-      // Keep existing column order; leave removed fields (Mother, DOB, PIN, Address, WhatsApp, Email) blank
-      // Reg | Time | Name | Father | Mother | Gender | DOB | Class | District | Block | School | Village | PIN | Address | Mobile | WhatsApp | Email | OMR Roll | Year
+      // Reg | Time | Name | Father | Gender | Class | District | Block | School | Village | Mobile | OMR Roll | Year
       sheet.appendRow([
         regNo,
         now,
         upper_(data.name),
         upper_(data.father),
-        '',
         upper_(data.gender),
-        '',
         data.cls,
         upper_(data.district),
         upper_(data.block),
         upper_(data.school),
         upper_(data.village),
-        '',
-        '',
         String(data.mobile).trim(),
-        '',
-        '',
         omrNo,
         ACADEMIC_YEAR
       ]);
@@ -387,7 +374,7 @@ function backfillOmrNumbers() {
     }
     out.push([omrFromSerial_(n)]);
   }
-  sheet.getRange(2, 18, out.length, 1).setValues(out);
+  sheet.getRange(2, 12, out.length, 1).setValues(out);
 }
 
 function ensurePaymentsSheet_(ss) {
@@ -412,8 +399,8 @@ function countSchoolStudents_(district, block, school, sheet) {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return 0;
 
-  // Only District, Block and School are needed (I:K), not the full 19-column row.
-  var values = sheet.getRange(2, 9, lastRow - 1, 3).getValues();
+  // Only District, Block and School are needed (G:I), not the whole row.
+  var values = sheet.getRange(2, 7, lastRow - 1, 3).getValues();
   var n = 0;
   for (var i = 0; i < values.length; i++) {
     var sheetSchool = String(values[i][2] || '').trim();
@@ -625,7 +612,7 @@ function rebuildSchoolDues() {
   }
 
   if (reg.getLastRow() >= 2) {
-    var rows = reg.getRange(2, 9, reg.getLastRow() - 1, 3).getValues();
+    var rows = reg.getRange(2, 7, reg.getLastRow() - 1, 3).getValues();
     for (var i = 0; i < rows.length; i++) {
       var s = String(rows[i][2] || '').trim();
       if (!s) continue;
