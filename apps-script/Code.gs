@@ -191,17 +191,21 @@ function locMatch_(sheetVal, selected) {
   return false;
 }
 
-// Common Rajasthan govt-school abbreviations, expanded to the same words
-// schoolNormalizeKey_ would produce from the spelled-out name, so e.g.
-// "GSSS Lasdawan" and "Govt Senior Secondary School Lasdawan" normalize
-// to the same key. Place names are never touched, so two different real
-// schools that happen to share this boilerplate still stay distinct.
+// Whole-name abbreviations, expanded to the same words schoolNormalizeKey_
+// would produce from the spelled-out name, so e.g. "GSSS Lasdawan" and
+// "Govt Senior Secondary School Lasdawan" normalize to the same key. Place
+// names are never touched, so two different real schools that happen to
+// share this boilerplate still stay distinct. Only add entries here that
+// are unambiguous — DPS and the "G..." govt-school prefixes always expand
+// to the same thing; a vaguer private-school initialism (which could stand
+// for several different actual school names) should not go in this table.
 var SCHOOL_ABBR_EXPAND_ = {
   gsss: ['govt', 'sr', 'sec', 'school'],
   gss: ['govt', 'sec', 'school'],
   gups: ['govt', 'up', 'pri', 'school'],
   gps: ['govt', 'pri', 'school'],
-  gms: ['govt', 'mid', 'school']
+  gms: ['govt', 'mid', 'school'],
+  dps: ['delhi', 'public', 'school']
 };
 var SCHOOL_WORD_SYNONYMS_ = {
   government: 'govt', govt: 'govt',
