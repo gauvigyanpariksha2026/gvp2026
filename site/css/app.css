@@ -1067,28 +1067,46 @@ a:focus-visible {
   position: relative;
   overflow: hidden;
   min-height: 92px;
-  padding: 14px 11px 12px;
+  padding: 14px 7px 12px;
   border: 1px solid rgba(166,64,37,.17);
   border-radius: 14px;
   background: linear-gradient(145deg, #fff8ef, #fffdfa);
   box-shadow: 0 9px 18px rgba(92,55,31,.07), inset 0 1px rgba(255,255,255,.8);
 }
 .exam-facts > div::after {
+  /* Bottom-right, not top-right: the top-right corner is where the ₹ amount
+     sits, and "₹21,000" was wide enough at this card's width to run under
+     an icon placed there. There's always clear space below the label. */
   position: absolute;
-  top: 8px;
-  right: 9px;
+  bottom: 7px;
+  right: 7px;
   opacity: .78;
-  font-size: 1.1rem;
+  font-size: .95rem;
 }
 .exam-facts > div:nth-child(1)::after { content: "🤝"; }
 .exam-facts > div:nth-child(2)::after { content: "✦"; color: #a64025; }
 .exam-facts > div:nth-child(3)::after { content: "🏆"; }
 .exam-facts > div:nth-child(2) { border-color: rgba(112,78,167,.18); background: linear-gradient(145deg, #f5f0ff, #fffdfa); }
 .exam-facts > div:nth-child(3) { border-color: rgba(190,132,32,.22); background: linear-gradient(145deg, #fff4c9, #fffdfa); }
-.exam-facts strong { display: block; color: #a64025; font-size: 1.25rem; line-height: 1.1; font-variant-numeric: lining-nums proportional-nums; }
+.exam-facts strong {
+  display: block;
+  overflow-wrap: break-word;
+  color: #a64025;
+  font-size: 1.25rem;
+  line-height: 1.15;
+  font-variant-numeric: lining-nums proportional-nums;
+}
 .exam-facts > div:nth-child(2) strong { color: #7150a8; }
 .exam-facts > div:nth-child(3) strong { color: #95631a; }
 .exam-facts span { display: block; margin-top: 8px; color: #806b5d; font-size: .68rem; font-weight: 700; line-height: 1.3; }
+/* .exam-story pins the poster column to 260-320px at every width from here
+   up (see the "compact poster thumbnail" rule below), which squeezes this
+   3-column fact grid down to ~50px per card — too narrow for "₹21,000" at
+   1.25rem, so it overflowed and got clipped by this card's overflow:hidden.
+   Shrink it back down whenever that two-column layout is active. */
+@media (min-width: 640px) {
+  .exam-facts strong { font-size: .96rem; }
+}
 
 /* Infographic treatment for payment journey and guide cards. */
 .payment-flow {
