@@ -2337,6 +2337,12 @@ main section.form-step-card:hover,
 @media (max-width: 639px) {
   .district-guide { grid-template-columns: 1fr; gap: 5px; }
   .district-guide > i { justify-self: center; transform: rotate(90deg); }
+  /* The later "Matched key-dates timeline" pass forces exam-detail-grid to
+     two columns with !important, which otherwise wins over the earlier
+     single-column mobile rule regardless of source order. Re-assert it here
+     so Key Dates / Rewards don't get squeezed into unreadable columns on
+     narrow screens. */
+  .exam-detail-grid { grid-template-columns: 1fr !important; }
   .exam-timeline li { grid-template-columns: 112px minmax(0, 1fr); gap: 9px; }
   .exam-timeline time { font-size: .78rem !important; }
   .exam-timeline li > span { font-size: .78rem; }
