@@ -2112,7 +2112,7 @@ main section.form-step-card:hover,
    frame — halve each thumb's width instead of the single-poster 320px cap,
    and let them wrap to stacked on very narrow widths. */
 .exam-poster-frame-dual { gap: 10px; flex-wrap: wrap; }
-/* hero-title.jpeg (714x1280, aspect .56) and event-poster.jpeg (988x1280,
+/* firefly-1.jpg (3072x5504, aspect .56) and event-poster.jpeg (988x1280,
    aspect .77) are very different shapes — at equal widths they rendered at
    very different heights and looked mismatched side by side. Give both
    thumbs the same box (a shared aspect ratio, letterboxed) so the pair
