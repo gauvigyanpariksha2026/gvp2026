@@ -13,9 +13,13 @@
  * into API_URL at the top of site/js/api.js.
  *
  * Read actions  (GET  ?action=NAME&...params)
- *   getDistricts, getLocations, getBlocks, getSchoolBill
+ *   getDistricts, getLocations, getBlocks, getSchoolBill, getSchools
  * Write actions (POST body: {"action":"NAME","payload":{...}})
  *   submitRegistration, reportSchoolPayment
+ *
+ * Unexpected server-side errors (not normal validation rejections) are
+ * appended to a hidden "Errors" sheet tab by logError_ — check there if
+ * submissions seem to be failing without a clear reason.
  */
 
 // For a spreadsheet-bound Apps Script, the attached spreadsheet is used first.
@@ -37,7 +41,7 @@ var REG_HEADERS_ = [
 ];
 var PAY_HEADERS_ = ['District', 'Block', 'School', 'Students', 'Amount Due', 'Amount Paid', 'Status', 'Payer Name', 'UTR', 'Payer Mobile', 'Reported At', 'Books'];
 var DUES_HEADERS_ = ['District', 'Block', 'School', 'Students', 'Amount', 'Paid', 'Balance', 'Status', 'Books'];
-var UTILITY_SHEETS_ = { 'Payments': true, 'School Dues': true };
+var UTILITY_SHEETS_ = { 'Payments': true, 'School Dues': true, 'Errors': true };
 
 function getSpreadsheet_() {
   // A bound project should not fail merely because an old copied ID remains here.
@@ -120,13 +124,36 @@ function dispatchApi_(action, p) {
         return submitRegistration(p);
       case 'getSchoolBill':
         return getSchoolBill(p.district, p.block, p.school);
+      case 'getSchools':
+        return { ok: true, data: getSchools(p.district, p.block) };
       case 'reportSchoolPayment':
         return reportSchoolPayment(p);
       default:
         return { ok: false, error: 'Unknown action: ' + action };
     }
   } catch (err) {
+    logError_(action, err);
     return { ok: false, error: err && err.message ? err.message : 'Server error' };
+  }
+}
+
+// Errors logged here are genuine unexpected failures (Sheet API errors, lock
+// timeouts, bugs) — normal validation rejections return {ok:false} directly
+// without throwing, so they never reach this. Never let logging itself break
+// the response the caller is waiting on.
+function logError_(context, err) {
+  try {
+    var ss = getSpreadsheet_();
+    var sheet = ss.getSheetByName('Errors');
+    if (!sheet) {
+      sheet = ss.insertSheet('Errors');
+      sheet.getRange(1, 1, 1, 3).setValues([['Time', 'Action', 'Error']]);
+      sheet.setFrozenRows(1);
+    }
+    var now = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'M/d/yyyy HH:mm:ss');
+    sheet.appendRow([now, context || '', String(err && err.message ? err.message : err)]);
+  } catch (e) {
+    // Swallow — logging must never mask or replace the real error response.
   }
 }
 
@@ -343,6 +370,7 @@ function submitRegistration(data) {
       lock.releaseLock();
     }
   } catch (e) {
+    logError_('submitRegistration', e);
     return { ok: false, error: e.message || 'त्रुटि हुई, पुनः प्रयास करें' };
   }
 }
@@ -424,6 +452,29 @@ function countSchoolStudents_(district, block, school, sheet) {
     n++;
   }
   return n;
+}
+
+// Distinct school names already registered, optionally narrowed to a
+// district/block, for the site's school-name autocomplete. Returns sorted,
+// de-duplicated names as stored (upper_() at submit time).
+function getSchools(district, block) {
+  var sheet = getRegistrationSheet_(getSpreadsheet_());
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+
+  var values = sheet.getRange(2, 7, lastRow - 1, 3).getValues();
+  var seen = {};
+  var out = [];
+  for (var i = 0; i < values.length; i++) {
+    var sheetSchool = String(values[i][2] || '').trim();
+    if (!sheetSchool) continue;
+    if (district && !locMatch_(values[i][0], district)) continue;
+    if (block && !locMatch_(values[i][1], block)) continue;
+    if (seen[sheetSchool]) continue;
+    seen[sheetSchool] = true;
+    out.push(sheetSchool);
+  }
+  return out.sort();
 }
 
 function sumSchoolPaid_(district, block, school, sheet) {
@@ -520,6 +571,7 @@ function getSchoolBill(district, block, school) {
       upi: upiPack.upi
     };
   } catch (e) {
+    logError_('getSchoolBill', e);
     return { ok: false, error: e.message || 'Could not load bill' };
   }
 }
@@ -594,6 +646,7 @@ function reportSchoolPayment(data) {
       lock.releaseLock();
     }
   } catch (e) {
+    logError_('reportSchoolPayment', e);
     return { ok: false, error: e.message || 'Could not save payment' };
   }
 }

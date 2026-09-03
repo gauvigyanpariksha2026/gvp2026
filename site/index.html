@@ -240,9 +240,10 @@ select.inp:disabled{
           <div class="school-location-grid">
             <div>
               <label class="lbl" for="school">विद्यालय का नाम, गाँव / शहर <span class="req">*</span></label>
-              <input id="school" class="inp" type="text" autocomplete="off"
+              <input id="school" class="inp" type="text" autocomplete="off" list="schoolList"
                      placeholder="School name, Village or City"
                      lang="en" autocapitalize="words" spellcheck="false" required>
+              <datalist id="schoolList"></datalist>
               <p class="hint">Example: Govt Senior Secondary School, Bhilwara</p>
             </div>
           </div>
@@ -779,7 +780,21 @@ function fillBlocks(district){
 
 districtEl.addEventListener('change',function(){
   fillBlocks(this.value);
+  refreshSchoolList();
 });
+blockEl.addEventListener('change',refreshSchoolList);
+
+function refreshSchoolList(){
+  var datalist=$('schoolList');
+  datalist.innerHTML='';
+  if(!apiReady() || !districtEl.value || !blockEl.value) return;
+  GVP_API.get('getSchools',{district:districtEl.value,block:blockEl.value}).then(function(res){
+    if(!res||!res.ok||!res.data) return;
+    res.data.forEach(function(name){
+      var o=document.createElement('option'); o.value=name; datalist.appendChild(o);
+    });
+  }).catch(function(){ /* autocomplete is a convenience, fail silently */ });
+}
 
 ['name','father','school'].forEach(function(id){
   $(id).addEventListener('input',function(){
