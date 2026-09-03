@@ -1966,16 +1966,27 @@ body main.rounded-b-2xl > #payForm { background: linear-gradient(145deg, #eaf7ed
   body { background: #fff !important; }
   .dotfield { padding: 0 !important; }
 
-  /* Registration confirmation slip: hide everything except #done so the
-     printed page / saved PDF is just the confirmation, not the whole site. */
-  body.print-confirmation .mx-auto.max-w-3xl > *:not(#done) { display: none !important; }
+  /* Confirmation slip (registration and payment pages): hide everything
+     except #done so the printed page / saved PDF is just the confirmation.
+     On index.html #done is a direct sibling under .mx-auto.max-w-3xl; on
+     pay.html it's nested inside #main-content instead, so #main-content is
+     kept visible here and its own non-#done children are hidden below. */
+  body.print-confirmation .mx-auto.max-w-3xl > *:not(#done):not(#main-content) { display: none !important; }
+  body.print-confirmation #main-content > *:not(#done) { display: none !important; }
+  body.print-confirmation #main-content {
+    display: block !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
   body.print-confirmation #done {
     display: block !important;
     box-shadow: none !important;
     border-width: 1px !important;
   }
   body.print-confirmation #printConfirmBtn,
-  body.print-confirmation #printConfirmBtn + p { display: none !important; }
+  body.print-confirmation #printConfirmBtn + p,
+  body.print-confirmation #printPayConfirmBtn,
+  body.print-confirmation #printPayConfirmBtn + p { display: none !important; }
 }
 
 /* Unified form color system: warm paper surfaces, terracotta action color,
