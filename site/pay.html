@@ -215,6 +215,12 @@ select.inp:disabled{
           <p class="hint">English only</p>
         </div>
         <div>
+          <label class="lbl" for="payAmount">जमा की गई राशि / Amount paid (₹) <span class="req">*</span></label>
+          <input id="payAmount" class="inp font-lat tracking-wider" type="text" inputmode="numeric"
+                 pattern="[0-9]{1,9}" autocomplete="off" required>
+          <p id="payAmountHint" class="hint">Full amount by default — reduce this if you're paying part now</p>
+        </div>
+        <div>
           <label class="lbl" for="utr">UTR / UPI Ref No <span class="req">*</span></label>
           <input id="utr" class="inp font-lat tracking-wider" type="text" inputmode="numeric"
                  pattern="[0-9]{6,24}" autocomplete="off" maxlength="24" required>
@@ -322,6 +328,7 @@ function digitsOnly(id,maxLength){
 }
 digitsOnly('utr',24);
 digitsOnly('mobile',10);
+digitsOnly('payAmount',9);
 
 (function(){
   if(!apiReady()){
@@ -542,6 +549,8 @@ $('billBtn').addEventListener('click',function(){
         $('upiLink').innerHTML='<span aria-hidden="true">⚡</span> Pay '+rupee(res.amountDue)+' <span aria-hidden="true">↗</span>';
         show($('upiBox'));
       }
+      $('payAmount').value=res.amountDue;
+      $('payAmountHint').textContent='Full amount due is ₹'+res.amountDue+' — reduce this if you\'re paying part now';
       show($('payForm'));
       setPayFlow(3);
     })
@@ -558,8 +567,11 @@ $('payBtn').addEventListener('click',function(){
   var payeeName=$('payeeName').value.trim();
   var utr=$('utr').value.replace(/\s+/g,'').trim();
   var mobile=$('mobile').value.trim();
+  var amountStr=$('payAmount').value.trim();
+  var amount=parseInt(amountStr,10);
   var NAME_EN=/^[A-Za-z][A-Za-z .'-]{1,78}$/;
   if(!payeeName||!NAME_EN.test(payeeName)){bad($('payeeName'));shakeField($('payeeName'));show($('formErr'),'भुगतानकर्ता का नाम अंग्रेज़ी में लिखें / Enter payee name in English');return;}
+  if(!/^[0-9]{1,9}$/.test(amountStr)||amount<1||amount>LAST_BILL.amountDue){bad($('payAmount'));shakeField($('payAmount'));show($('formErr'),'राशि ₹1 और ₹'+LAST_BILL.amountDue+' के बीच होनी चाहिए / Amount must be between ₹1 and ₹'+LAST_BILL.amountDue);return;}
   if(!/^[0-9]{6,24}$/.test(utr)){bad($('utr'));shakeField($('utr'));show($('formErr'),'UTR / UPI Ref No must contain 6–24 digits only');return;}
   if(!/^[6-9][0-9]{9}$/.test(mobile)){bad($('mobile'));shakeField($('mobile'));show($('formErr'),'मोबाइल नंबर सही नहीं है / Enter a 10-digit mobile');return;}
   if(!apiReady()){
@@ -579,7 +591,7 @@ $('payBtn').addEventListener('click',function(){
   GVP_API.post('reportSchoolPayment',{
       district:f.district, block:f.block, school:f.school,
       payeeName:payeeName, utr:utr, mobile:mobile, hp:$('website').value,
-      students:LAST_BILL.students, amount:LAST_BILL.amountDue
+      students:LAST_BILL.students, amount:amount
     })
     .then(function(res){
       if(!res||!res.ok){fail((res&&res.error)||'Could not save');return;}
@@ -588,7 +600,7 @@ $('payBtn').addEventListener('click',function(){
       var summaryRows=[
         ['विद्यालय / School',f.school],
         ['जिला / ब्लॉक',f.district+' / '+f.block],
-        ['राशि / Amount',rupee(LAST_BILL.amountDue)],
+        ['राशि / Amount',rupee(amount)],
         ['UTR / UPI Ref',utr],
         ['भुगतानकर्ता / Payee',payeeName],
         ['मोबाइल / Mobile',mobile]

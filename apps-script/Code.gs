@@ -419,6 +419,7 @@ function submitRegistration(data) {
         omrNo,
         ACADEMIC_YEAR
       ]);
+      invalidateSchoolsCache_(data.district, data.block);
       return { ok: true, regNo: regNo, omrNo: omrNo };
     } finally {
       lock.releaseLock();
@@ -511,27 +512,63 @@ function countSchoolStudents_(district, block, school, sheet) {
 // Distinct school names already registered, optionally narrowed to a
 // district/block, for the site's school-name autocomplete. Returns sorted,
 // de-duplicated names as stored (upper_() at submit time).
+//
+// Cached for SCHOOLS_CACHE_TTL_SEC per district/block combo so repeated
+// autocomplete keystrokes don't rescan the whole registration sheet — the
+// scan cost grows with total registrations, not with how often people type.
+// submitRegistration_ invalidates the exact keys a new row can affect right
+// after it's written, so the cache is never stale for longer than a
+// submission that happens to race a read.
+var SCHOOLS_CACHE_TTL_SEC = 300;
+
+function schoolsCacheKey_(district, block) {
+  return 'schools:' + compactKey_(district) + ':' + compactKey_(block);
+}
+
+function invalidateSchoolsCache_(district, block) {
+  try {
+    CacheService.getScriptCache().removeAll([
+      schoolsCacheKey_('', ''),
+      schoolsCacheKey_(district, ''),
+      schoolsCacheKey_(district, block)
+    ]);
+  } catch (e) {
+    // Cache is best-effort; a failed invalidation just means autocomplete
+    // can lag by up to SCHOOLS_CACHE_TTL_SEC, not a correctness issue.
+  }
+}
+
 function getSchools(district, block) {
+  var cache = CacheService.getScriptCache();
+  var key = schoolsCacheKey_(district, block);
+  var cached = cache.get(key);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* fall through and recompute */ }
+  }
+
   var sheet = getRegistrationSheet_(getSpreadsheet_());
   var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return [];
-
-  var values = sheet.getRange(2, 7, lastRow - 1, 3).getValues();
-  var seen = {};
   var out = [];
-  for (var i = 0; i < values.length; i++) {
-    var sheetSchool = String(values[i][2] || '').trim();
-    if (!sheetSchool) continue;
-    if (district && !locMatch_(values[i][0], district)) continue;
-    if (block && !locMatch_(values[i][1], block)) continue;
-    // De-dupe by normalized key so "GSSS X" and "Govt Sr Sec School X"
-    // don't both show up as separate suggestions — keep the first spelling seen.
-    var key = schoolNormalizeKey_(sheetSchool);
-    if (seen[key]) continue;
-    seen[key] = true;
-    out.push(sheetSchool);
+  if (lastRow >= 2) {
+    var values = sheet.getRange(2, 7, lastRow - 1, 3).getValues();
+    var seen = {};
+    for (var i = 0; i < values.length; i++) {
+      var sheetSchool = String(values[i][2] || '').trim();
+      if (!sheetSchool) continue;
+      if (district && !locMatch_(values[i][0], district)) continue;
+      if (block && !locMatch_(values[i][1], block)) continue;
+      // De-dupe by normalized key so "GSSS X" and "Govt Sr Sec School X"
+      // don't both show up as separate suggestions — keep the first spelling seen.
+      var dedupeKey = schoolNormalizeKey_(sheetSchool);
+      if (seen[dedupeKey]) continue;
+      seen[dedupeKey] = true;
+      out.push(sheetSchool);
+    }
+    out.sort();
   }
-  return out.sort();
+
+  try { cache.put(key, JSON.stringify(out), SCHOOLS_CACHE_TTL_SEC); } catch (e) { /* best-effort */ }
+  return out;
 }
 
 function sumSchoolPaid_(district, block, school, sheet) {
@@ -661,6 +698,14 @@ function reportSchoolPayment(data) {
     if (!/^[6-9][0-9]{9}$/.test(mobile)) {
       return { ok: false, error: 'Enter a valid 10-digit mobile (starts with 6–9)' };
     }
+    // Optional: caller may report a partial payment (e.g. a school paying in
+    // two instalments). Omitted/blank means "pay the full amount currently
+    // due", same as before this field existed.
+    var amountRaw = data.amount;
+    var hasAmount = amountRaw !== undefined && amountRaw !== null && String(amountRaw).trim() !== '';
+    if (hasAmount && !/^[0-9]+$/.test(String(amountRaw).trim())) {
+      return { ok: false, error: 'Amount must be a whole number of rupees' };
+    }
 
     var lock = LockService.getScriptLock();
     lock.waitLock(20000);
@@ -681,7 +726,13 @@ function reportSchoolPayment(data) {
         return { ok: false, error: 'This school is already paid / cleared' };
       }
 
-      var amount = bill.amountDue;
+      var amount = hasAmount ? parseInt(String(amountRaw).trim(), 10) : bill.amountDue;
+      if (amount < 1 || amount > bill.amountDue) {
+        return {
+          ok: false,
+          error: 'Amount must be between ₹1 and ₹' + bill.amountDue + ' (the amount currently due)'
+        };
+      }
       var students = bill.students;
       var now = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'M/d/yyyy HH:mm:ss');
       paymentSheet.appendRow([
@@ -698,7 +749,11 @@ function reportSchoolPayment(data) {
         now,
         'Pending'
       ]);
-      return { ok: true, message: 'Payment reported. Books will be sent after verification.' };
+      var remaining = bill.amountDue - amount;
+      var message = remaining > 0
+        ? 'Partial payment reported (₹' + amount + '). ₹' + remaining + ' still due. Books will be sent after full payment is verified.'
+        : 'Payment reported. Books will be sent after verification.';
+      return { ok: true, message: message, amountPaidNow: amount, remainingDue: remaining };
     } finally {
       lock.releaseLock();
     }
