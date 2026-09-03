@@ -2134,6 +2134,15 @@ main section.form-step-card:hover,
   height: 100% !important;
   object-fit: contain !important;
 }
+/* With the descriptive text column gone, drop the poster/copy two-column
+   split entirely and let the poster pair use the width that column of text
+   used to occupy — otherwise they'd stay squeezed into the narrow 260-320px
+   track above, now next to nothing. */
+.exam-story-posters-only { grid-template-columns: 1fr !important; }
+.exam-story-posters-only .exam-poster-frame { justify-content: center; }
+.exam-story-posters-only .exam-poster-frame-dual .exam-poster-thumb {
+  max-width: 340px !important;
+}
 .registration-payment-banner { margin-top: 0; margin-bottom: 1.5rem; }
 .exam-info-icon,
 .mini-icon,
