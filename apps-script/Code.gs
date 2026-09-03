@@ -191,6 +191,56 @@ function locMatch_(sheetVal, selected) {
   return false;
 }
 
+// Common Rajasthan govt-school abbreviations, expanded to the same words
+// schoolNormalizeKey_ would produce from the spelled-out name, so e.g.
+// "GSSS Lasdawan" and "Govt Senior Secondary School Lasdawan" normalize
+// to the same key. Place names are never touched, so two different real
+// schools that happen to share this boilerplate still stay distinct.
+var SCHOOL_ABBR_EXPAND_ = {
+  gsss: ['govt', 'sr', 'sec', 'school'],
+  gss: ['govt', 'sec', 'school'],
+  gups: ['govt', 'up', 'pri', 'school'],
+  gps: ['govt', 'pri', 'school'],
+  gms: ['govt', 'mid', 'school']
+};
+var SCHOOL_WORD_SYNONYMS_ = {
+  government: 'govt', govt: 'govt',
+  senior: 'sr', sr: 'sr', sen: 'sr',
+  secondary: 'sec', sec: 'sec',
+  primary: 'pri', pri: 'pri', prim: 'pri',
+  upper: 'up', up: 'up',
+  middle: 'mid', mid: 'mid',
+  school: 'school', vidyalaya: 'school', vidhyalaya: 'school'
+};
+
+// School-name-only matching key: expands known abbreviations and collapses
+// common spelling variants (govt/government, sr/senior, sec/secondary, ...)
+// before compacting, so abbreviation vs. spelled-out names of the same
+// school match. Used only for the School field — district/block come from
+// a fixed dropdown and never need this.
+function schoolNormalizeKey_(s) {
+  var words = String(s || '').toLowerCase().split(/[^a-z0-9]+/).filter(function (w) { return w; });
+  var out = [];
+  for (var i = 0; i < words.length; i++) {
+    var w = words[i];
+    if (SCHOOL_ABBR_EXPAND_[w]) {
+      out = out.concat(SCHOOL_ABBR_EXPAND_[w]);
+    } else {
+      out.push(SCHOOL_WORD_SYNONYMS_[w] || w);
+    }
+  }
+  return out.join('');
+}
+
+function schoolMatch_(sheetVal, selected) {
+  if (locMatch_(sheetVal, selected)) return true;
+  var sel = String(selected || '').trim();
+  if (!sel) return true;
+  var s = String(sheetVal || '').trim();
+  if (!s) return false;
+  return schoolNormalizeKey_(s) === schoolNormalizeKey_(sel);
+}
+
 function validLocation_(district, block) {
   district = String(district || '').trim();
   block = String(block || '').trim();
@@ -448,7 +498,7 @@ function countSchoolStudents_(district, block, school, sheet) {
     if (!sheetSchool) continue;
     if (district && !locMatch_(values[i][0], district)) continue;
     if (block && !locMatch_(values[i][1], block)) continue;
-    if (!locMatch_(sheetSchool, school)) continue;
+    if (!schoolMatch_(sheetSchool, school)) continue;
     n++;
   }
   return n;
@@ -470,8 +520,11 @@ function getSchools(district, block) {
     if (!sheetSchool) continue;
     if (district && !locMatch_(values[i][0], district)) continue;
     if (block && !locMatch_(values[i][1], block)) continue;
-    if (seen[sheetSchool]) continue;
-    seen[sheetSchool] = true;
+    // De-dupe by normalized key so "GSSS X" and "Govt Sr Sec School X"
+    // don't both show up as separate suggestions — keep the first spelling seen.
+    var key = schoolNormalizeKey_(sheetSchool);
+    if (seen[key]) continue;
+    seen[key] = true;
     out.push(sheetSchool);
   }
   return out.sort();
@@ -490,7 +543,7 @@ function sumSchoolPaid_(district, block, school, sheet) {
     if (st !== 'Reported' && st !== 'Paid') continue;
     if (district && !locMatch_(values[i][0], district)) continue;
     if (block && !locMatch_(values[i][1], block)) continue;
-    if (!locMatch_(values[i][2], school)) continue;
+    if (!schoolMatch_(values[i][2], school)) continue;
     paid += Number(values[i][5]) || 0;
   }
   return paid;
@@ -660,7 +713,7 @@ function rebuildSchoolDues() {
   var bookRank = { Pending: 0, Packed: 1, Sent: 2 };
 
   function keyOf(d, b, s) {
-    return compactKey_(d) + '|' + compactKey_(b) + '|' + compactKey_(s);
+    return compactKey_(d) + '|' + compactKey_(b) + '|' + schoolNormalizeKey_(s);
   }
   function ensure(d, b, s) {
     var key = keyOf(d, b, s);
