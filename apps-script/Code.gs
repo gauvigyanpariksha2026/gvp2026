@@ -235,8 +235,11 @@ function scanMaxRegSerial_(sheet) {
 // counter in Properties avoids rescanning the whole Reg column on every
 // submission. The first call after deploy (or after the property is
 // cleared) falls back to a one-time scan to pick up where the sheet left off.
+// Uses Script (not Document) properties: this project can run as a
+// standalone script opening the spreadsheet by ID, and getDocumentProperties()
+// returns null in that mode since there's no bound container.
 function nextRegSerial_(sheet) {
-  var props = PropertiesService.getDocumentProperties();
+  var props = PropertiesService.getScriptProperties();
   var stored = props.getProperty('LAST_REG_SERIAL');
   var next = (stored ? parseInt(stored, 10) : scanMaxRegSerial_(sheet)) + 1;
   props.setProperty('LAST_REG_SERIAL', String(next));
@@ -355,7 +358,7 @@ function omrFromSerial_(n) {
  * counter. Not needed otherwise — nextRegSerial_ manages the counter itself.
  */
 function resetRegSerialCounter() {
-  PropertiesService.getDocumentProperties().deleteProperty('LAST_REG_SERIAL');
+  PropertiesService.getScriptProperties().deleteProperty('LAST_REG_SERIAL');
 }
 
 /** Run once from the editor to fill OMR Roll for existing rows. */
