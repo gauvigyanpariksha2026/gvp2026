@@ -250,7 +250,12 @@ select.inp:disabled{
       </span>
       <h2 class="mt-5 text-2xl font-semibold done-item">भुगतान दर्ज हो गया</h2>
       <p id="doneMsg" class="mt-3 text-sm text-ink/70 leading-relaxed done-item">Payment reported. Books will be sent after verification.</p>
+      <table id="donePaySummary" class="done-item info-table mt-6 text-left" style="max-width:22rem;margin-left:auto;margin-right:auto"></table>
       <p class="thanks-note done-item">धन्यवाद! आपके इस सहयोग से गौ विज्ञान परीक्षा अधिक से अधिक विद्यार्थियों तक पहुँच सकेगी। गौ सेवा में आपका यह योगदान सराहनीय है।</p>
+      <p class="mt-6 done-item">
+        <button id="printPayConfirmBtn" type="button" class="btn">पुष्टि सहेजें / Save confirmation</button>
+      </p>
+      <p class="mt-2 text-xs text-ink/50 done-item">इसे प्रिंट करें या PDF के रूप में सहेजें / Print it or save as PDF</p>
     </div>
 
     <p class="mt-8 text-center text-sm">
@@ -565,6 +570,23 @@ $('payBtn').addEventListener('click',function(){
       if(!res||!res.ok){fail((res&&res.error)||'Could not save');return;}
       hide($('payForm')); hide($('upiBox')); hide($('needsUpiBox'));
       show($('doneMsg'),res.message||'Payment reported. Books will be sent after verification.');
+      var summaryRows=[
+        ['विद्यालय / School',f.school],
+        ['जिला / ब्लॉक',f.district+' / '+f.block],
+        ['राशि / Amount',rupee(LAST_BILL.amountDue)],
+        ['UTR / UPI Ref',utr],
+        ['भुगतानकर्ता / Payee',payeeName],
+        ['मोबाइल / Mobile',mobile]
+      ];
+      var summaryTable=$('donePaySummary');
+      summaryTable.innerHTML='';
+      summaryRows.forEach(function(r){
+        var tr=document.createElement('tr');
+        var th=document.createElement('td'); th.textContent=r[0];
+        var td=document.createElement('td'); td.textContent=r[1];
+        tr.appendChild(th); tr.appendChild(td);
+        summaryTable.appendChild(tr);
+      });
       show($('done'));
       setPayFlow(4);
       var doneEl=$('done'), doneItems=doneEl.querySelectorAll('.done-item');
@@ -581,6 +603,14 @@ $('payBtn').addEventListener('click',function(){
       window.scrollTo({top:0,behavior:'smooth'});
     })
     .catch(function(e){fail('Server error: '+errorMessage(e,'server error'));});
+});
+
+$('printPayConfirmBtn').addEventListener('click',function(){
+  document.body.classList.add('print-confirmation');
+  window.print();
+});
+window.addEventListener('afterprint',function(){
+  document.body.classList.remove('print-confirmation');
 });
 </script>
 </body>
