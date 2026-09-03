@@ -2334,6 +2334,34 @@ main section.form-step-card:hover,
   box-shadow: 0 0 7px rgba(217,163,61,.42);
 }
 
+/* Official notice poster card in "Exam at a glance" */
+.notice-poster-card {
+  margin-top: 16px;
+  padding: 22px;
+  border: 1px solid rgba(166, 64, 37, .18);
+  border-radius: 16px;
+  background: linear-gradient(145deg, #fff7ee, #fffefa);
+  text-align: center;
+}
+.notice-poster-card .mini-heading { justify-content: center; margin-bottom: 16px; }
+.notice-poster-card .exam-poster-thumb {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  cursor: zoom-in;
+  background: transparent;
+  box-shadow: 0 12px 24px rgba(55, 37, 20, .16);
+}
+.notice-poster-card .exam-poster-thumb img {
+  display: block;
+  width: 100%;
+  border-radius: inherit;
+}
+
 @media (max-width: 639px) {
   .district-guide { grid-template-columns: 1fr; gap: 5px; }
   .district-guide > i { justify-self: center; transform: rotate(90deg); }

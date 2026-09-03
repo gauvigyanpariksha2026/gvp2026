@@ -420,6 +420,16 @@ select.inp:disabled{
       </div>
     </div>
 
+    <div class="notice-poster-card">
+      <div class="mini-heading">
+        <span class="mini-icon" aria-hidden="true">📋</span>
+        <div><strong>सम्पूर्ण सूचना पोस्टर</strong><span>Official notice poster</span></div>
+      </div>
+      <button class="exam-poster-thumb" type="button" aria-label="आधिकारिक सूचना पोस्टर को बड़े आकार में देखें">
+        <img src="img/event-poster.jpeg" alt="गौ विज्ञान परीक्षा 2026-27 — आधिकारिक सूचना पोस्टर" loading="lazy">
+      </button>
+    </div>
+
   </section>
 
   <!-- ===== STUDY BOOK ===== -->
@@ -575,13 +585,20 @@ select.inp:disabled{
 <script>
 /* ---------- compact poster with crisp tap-to-read view ---------- */
 (function(){
-  var thumb=document.querySelector('.exam-poster-thumb');
+  var thumbs=document.querySelectorAll('.exam-poster-thumb');
   var box=document.getElementById('posterLightbox');
   var close=document.getElementById('posterLightboxClose');
-  if(!thumb||!box||!close) return;
-  function open(){ box.hidden=false; document.body.classList.add('poster-open'); close.focus(); }
-  function shut(){ box.hidden=true; document.body.classList.remove('poster-open'); thumb.focus(); }
-  thumb.addEventListener('click',open);
+  var boxImg=box&&box.querySelector('img');
+  if(!thumbs.length||!box||!close||!boxImg) return;
+  var activeThumb=null;
+  function open(thumb){
+    var srcImg=thumb.querySelector('img');
+    if(srcImg){ boxImg.src=srcImg.currentSrc||srcImg.src; boxImg.alt=srcImg.alt; }
+    activeThumb=thumb;
+    box.hidden=false; document.body.classList.add('poster-open'); close.focus();
+  }
+  function shut(){ box.hidden=true; document.body.classList.remove('poster-open'); if(activeThumb) activeThumb.focus(); }
+  thumbs.forEach(function(thumb){ thumb.addEventListener('click',function(){ open(thumb); }); });
   close.addEventListener('click',shut);
   box.addEventListener('click',function(e){ if(e.target===box) shut(); });
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&!box.hidden) shut(); });
