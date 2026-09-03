@@ -348,6 +348,16 @@ function omrFromSerial_(n) {
   return '26' + ('000000' + n).slice(-6);
 }
 
+/**
+ * Run once from the editor (select this function in the dropdown, then Run)
+ * after clearing out all registration rows, so the next real registration
+ * starts at GVP-2026-00001 again instead of continuing from the cached
+ * counter. Not needed otherwise — nextRegSerial_ manages the counter itself.
+ */
+function resetRegSerialCounter() {
+  PropertiesService.getDocumentProperties().deleteProperty('LAST_REG_SERIAL');
+}
+
 /** Run once from the editor to fill OMR Roll for existing rows. */
 function backfillOmrNumbers() {
   var ss = getSpreadsheet_();
