@@ -2108,6 +2108,32 @@ main section.form-step-card:hover,
   background: transparent;
 }
 .exam-poster-frame .exam-poster-thumb img { width: 100%; border-radius: inherit; }
+/* Two posters (hero image + official notice) side by side in the same
+   frame — halve each thumb's width instead of the single-poster 320px cap,
+   and let them wrap to stacked on very narrow widths. */
+.exam-poster-frame-dual { gap: 10px; flex-wrap: wrap; }
+/* hero-title.jpeg (714x1280, aspect .56) and event-poster.jpeg (988x1280,
+   aspect .77) are very different shapes — at equal widths they rendered at
+   very different heights and looked mismatched side by side. Give both
+   thumbs the same box (a shared aspect ratio, letterboxed) so the pair
+   reads as one consistent pair of cards regardless of each poster's own
+   proportions. */
+.exam-poster-frame-dual .exam-poster-thumb {
+  width: min(calc(50% - 5px), 220px) !important;
+  max-width: 220px !important;
+  flex: 1 1 130px;
+  aspect-ratio: 3 / 4;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: linear-gradient(145deg, #ead7ba, #f8eedf);
+}
+.exam-poster-frame-dual .exam-poster-thumb img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+}
 .registration-payment-banner { margin-top: 0; margin-bottom: 1.5rem; }
 .exam-info-icon,
 .mini-icon,
@@ -2350,34 +2376,6 @@ main section.form-step-card:hover,
   height: 1px;
   background: rgba(183, 123, 29, .58);
   box-shadow: 0 0 7px rgba(217,163,61,.42);
-}
-
-/* Official notice poster card in "Exam at a glance" */
-.notice-poster-card {
-  margin-top: 16px;
-  padding: 22px;
-  border: 1px solid rgba(166, 64, 37, .18);
-  border-radius: 16px;
-  background: linear-gradient(145deg, #fff7ee, #fffefa);
-  text-align: center;
-}
-.notice-poster-card .mini-heading { justify-content: center; margin-bottom: 16px; }
-.notice-poster-card .exam-poster-thumb {
-  display: block;
-  width: 100%;
-  max-width: 360px;
-  margin: 0 auto;
-  padding: 0;
-  border: 0;
-  border-radius: 12px;
-  cursor: zoom-in;
-  background: transparent;
-  box-shadow: 0 12px 24px rgba(55, 37, 20, .16);
-}
-.notice-poster-card .exam-poster-thumb img {
-  display: block;
-  width: 100%;
-  border-radius: inherit;
 }
 
 @media (max-width: 639px) {
