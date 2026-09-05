@@ -170,6 +170,12 @@ select.inp:disabled{
           <datalist id="schoolList"></datalist>
           <p class="hint">पंजीकरण फॉर्म में लिखा विद्यालय का नाम — English only</p>
         </div>
+        <div class="sm:col-span-2">
+          <label class="lbl" for="village">गाँव / शहर / Village or city <span class="req">*</span></label>
+          <input id="village" class="inp" type="text" autocomplete="address-level2"
+                 placeholder="Village or City" lang="en" autocapitalize="words" spellcheck="false" required>
+          <p class="hint">पंजीकरण फॉर्म में लिखा गाँव / शहर — English only</p>
+        </div>
       </div>
       <div class="mt-6">
         <button id="billBtn" type="button" class="btn">
@@ -447,6 +453,12 @@ inp.addEventListener('input',function(){
   else this.classList.remove('err');
 });
 
+$('village').addEventListener('input',function(){
+  hideBill();
+  if(/[ऀ-ॿ]/.test(this.value)) bad(this);
+  else this.classList.remove('err');
+});
+
 $('payeeName').addEventListener('input',function(){
   if(/[ऀ-ॿ]/.test(this.value)) bad(this);
   else this.classList.remove('err');
@@ -457,7 +469,7 @@ var LAST_BILL_KEY='';
 var LAST_BILL_LOOKUP_SCHOOL='';
 var BILL_REQUEST_ID=0;
 function schoolKey(f){
-  return [f.district,f.block,f.school].join('|').toLowerCase();
+  return [f.district,f.block,f.school,f.village].join('|').toLowerCase();
 }
 function legacySchoolKey(name){
   // Older registrations stored "School name, Village" in one field. The
@@ -488,7 +500,8 @@ function schoolFields(){
   return {
     district:$('district').value,
     block:blockEl.value.trim(),
-    school:$('school').value.trim()
+    school:$('school').value.trim(),
+    village:$('village').value.trim()
   };
 }
 
@@ -501,6 +514,8 @@ $('billBtn').addEventListener('click',function(){
   if(!f.block){errs.push('ब्लॉक चुनें / Select block');bad($('block'));}
   if(!f.school){errs.push('विद्यालय का नाम लिखें / Enter school name');bad($('school'));}
   else if(!PLACE_EN.test(f.school)){errs.push('विद्यालय का नाम अंग्रेज़ी में लिखें / Write school name in English');bad($('school'));}
+  if(!f.village){errs.push('गाँव / शहर लिखें / Enter village or city');bad($('village'));}
+  else if(!PLACE_EN.test(f.village)){errs.push('गाँव / शहर अंग्रेज़ी में लिखें / Write village or city in English');bad($('village'));}
   if(errs.length){show($('billErr'),errs[0]);shakeField(document.querySelector('.err'));return;}
 
   var requestId=++BILL_REQUEST_ID;
@@ -529,10 +544,13 @@ $('billBtn').addEventListener('click',function(){
         .then(function(listRes){
           if(requestId!==BILL_REQUEST_ID||!listRes||!listRes.ok||!listRes.data) return res;
           var match=listRes.data.filter(function(name){
-            return name.indexOf(',')>-1 && legacySchoolKey(name)===legacySchoolKey(f.school);
+            var parts=String(name).split(',');
+            return parts.length>1 && legacySchoolKey(name)===legacySchoolKey(f.school) &&
+              String(parts[parts.length-1]).toLowerCase().replace(/[^a-z0-9]/g,'')===
+              String(f.village).toLowerCase().replace(/[^a-z0-9]/g,'');
           })[0];
           if(!match) return res;
-          return GVP_API.get('getSchoolBill',{district:f.district,block:f.block,school:match})
+          return GVP_API.get('getSchoolBill',{district:f.district,block:f.block,school:match,village:f.village})
             .then(function(legacyRes){
               if(legacyRes&&legacyRes.ok&&legacyRes.students>0) legacyRes.lookupSchool=match;
               return legacyRes||res;
@@ -623,7 +641,7 @@ $('payBtn').addEventListener('click',function(){
   }
 
   GVP_API.post('reportSchoolPayment',{
-      district:f.district, block:f.block, school:LAST_BILL_LOOKUP_SCHOOL||f.school,
+      district:f.district, block:f.block, school:LAST_BILL_LOOKUP_SCHOOL||f.school, village:f.village,
       payeeName:payeeName, utr:utr, mobile:mobile, hp:$('website').value,
       students:LAST_BILL.students, amount:amount
     })
@@ -633,6 +651,7 @@ $('payBtn').addEventListener('click',function(){
       show($('doneMsg'),res.message||'Payment reported. Books will be sent after verification.');
       var summaryRows=[
         ['विद्यालय / School',f.school],
+        ['गाँव / शहर',f.village],
         ['जिला / ब्लॉक',f.district+' / '+f.block],
         ['राशि / Amount',rupee(amount)],
         ['UTR / UPI Ref',utr],

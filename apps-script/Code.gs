@@ -39,8 +39,8 @@ var REG_HEADERS_ = [
   'Reg', 'Time', 'Name', 'Father', 'Gender', 'Class',
   'District', 'Block', 'School', 'Village', 'Mobile', 'OMR Roll', 'Year'
 ];
-var PAY_HEADERS_ = ['District', 'Block', 'School', 'Students', 'Amount Due', 'Amount Paid', 'Status', 'Payer Name', 'UTR', 'Payer Mobile', 'Reported At', 'Books'];
-var DUES_HEADERS_ = ['District', 'Block', 'School', 'Students', 'Amount', 'Paid', 'Balance', 'Status', 'Books'];
+var PAY_HEADERS_ = ['District', 'Block', 'School', 'Students', 'Amount Due', 'Amount Paid', 'Status', 'Payer Name', 'UTR', 'Payer Mobile', 'Reported At', 'Books', 'Village'];
+var DUES_HEADERS_ = ['District', 'Block', 'School', 'Students', 'Amount', 'Paid', 'Balance', 'Status', 'Books', 'Village'];
 var UTILITY_SHEETS_ = { 'Payments': true, 'School Dues': true, 'Errors': true };
 
 function getSpreadsheet_() {
@@ -123,7 +123,7 @@ function dispatchApi_(action, p) {
       case 'submitRegistration':
         return submitRegistration(p);
       case 'getSchoolBill':
-        return getSchoolBill(p.district, p.block, p.school);
+        return getSchoolBill(p.district, p.block, p.school, p.village);
       case 'getSchools':
         return { ok: true, data: getSchools(p.district, p.block) };
       case 'reportSchoolPayment':
@@ -506,11 +506,13 @@ function ensurePaymentsSheet_(ss) {
   if (!first) {
     sheet.getRange(1, 1, 1, PAY_HEADERS_.length).setValues([PAY_HEADERS_]);
     sheet.setFrozenRows(1);
+  } else if (String(sheet.getRange(1, 13).getValue() || '').trim() !== 'Village') {
+    sheet.getRange(1, 13).setValue('Village');
   }
   return sheet;
 }
 
-function countSchoolStudents_(district, block, school, sheet) {
+function countSchoolStudents_(district, block, school, village, sheet) {
   sheet = sheet || getRegistrationSheet_(getSpreadsheet_());
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return 0;
@@ -524,6 +526,7 @@ function countSchoolStudents_(district, block, school, sheet) {
     if (district && !locMatch_(values[i][0], district)) continue;
     if (block && !locMatch_(values[i][1], block)) continue;
     if (!schoolMatch_(schoolDisplayName_(sheetSchool, values[i][3]), school)) continue;
+    if (village && !locMatch_(values[i][3], village)) continue;
     n++;
   }
   return n;
@@ -598,20 +601,27 @@ function getSchools(district, block) {
   return out;
 }
 
-function sumSchoolPaid_(district, block, school, sheet) {
+function paymentLocationMatch_(paymentSchool, paymentVillage, school, village) {
+  if (!schoolMatch_(paymentSchool, school)) return false;
+  if (!village) return true;
+  if (locMatch_(paymentVillage, village)) return true;
+  var comma = String(paymentSchool || '').lastIndexOf(',');
+  return comma > 0 && locMatch_(String(paymentSchool).substring(comma + 1), village);
+}
+
+function sumSchoolPaid_(district, block, school, village, sheet) {
   sheet = sheet || ensurePaymentsSheet_();
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return 0;
 
-  // A:G contains every field needed for matching and summing payments.
-  var values = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
+  var values = sheet.getRange(2, 1, lastRow - 1, 13).getValues();
   var paid = 0;
   for (var i = 0; i < values.length; i++) {
     var st = String(values[i][6] || '').trim();
     if (st !== 'Reported' && st !== 'Paid') continue;
     if (district && !locMatch_(values[i][0], district)) continue;
     if (block && !locMatch_(values[i][1], block)) continue;
-    if (!schoolMatch_(values[i][2], school)) continue;
+    if (!paymentLocationMatch_(values[i][2], values[i][12], school, village)) continue;
     paid += Number(values[i][5]) || 0;
   }
   return paid;
@@ -628,12 +638,12 @@ function utrAlreadyUsed_(utr, sheet) {
   return false;
 }
 
-function computeSchoolBill_(district, block, school, ss, registrationSheet, paymentsSheet) {
+function computeSchoolBill_(district, block, school, village, ss, registrationSheet, paymentsSheet) {
   ss = ss || getSpreadsheet_();
   registrationSheet = registrationSheet || getRegistrationSheet_(ss);
   paymentsSheet = paymentsSheet || ensurePaymentsSheet_(ss);
-  var students = countSchoolStudents_(district, block, school, registrationSheet);
-  var amountPaid = sumSchoolPaid_(district, block, school, paymentsSheet);
+  var students = countSchoolStudents_(district, block, school, village, registrationSheet);
+  var amountPaid = sumSchoolPaid_(district, block, school, village, paymentsSheet);
   var amountDue = students * FEE_PER_STUDENT - amountPaid;
   if (amountDue < 0) amountDue = 0;
   var status = 'Due';
@@ -670,16 +680,18 @@ function buildUpi_(amountDue, school) {
   };
 }
 
-function getSchoolBill(district, block, school) {
+function getSchoolBill(district, block, school, village) {
   try {
     district = String(district || '').trim();
     block = String(block || '').trim();
     school = String(school || '').trim();
+    village = String(village || '').trim();
     if (!school) return { ok: false, error: 'School name is required / विद्यालय का नाम लिखें' };
+    if (!village) return { ok: false, error: 'Village or city is required / गाँव या शहर लिखें' };
     var locErr = validLocation_(district, block);
     if (locErr) return { ok: false, error: locErr };
 
-    var bill = computeSchoolBill_(district, block, school);
+    var bill = computeSchoolBill_(district, block, school, village);
     var upiPack = buildUpi_(bill.amountDue, school);
     return {
       ok: true,
@@ -706,15 +718,20 @@ function reportSchoolPayment(data) {
     var district = String(data.district || '').trim();
     var block = String(data.block || '').trim();
     var school = String(data.school || '').trim();
+    var village = String(data.village || '').trim();
     var payeeName = String(data.payeeName || '').trim();
     var utr = String(data.utr || '').trim();
     var mobile = String(data.mobile || '').trim();
 
     if (!school) return { ok: false, error: 'School name is required / विद्यालय का नाम लिखें' };
+    if (!village) return { ok: false, error: 'Village or city is required / गाँव या शहर लिखें' };
     var locErr = validLocation_(district, block);
     if (locErr) return { ok: false, error: locErr };
     if (!/^[A-Za-z0-9][A-Za-z0-9 .,'()\/-]{1,118}$/.test(school)) {
       return { ok: false, error: 'Write school name in English / विद्यालय का नाम अंग्रेज़ी में लिखें' };
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9 .,'()\/-]{1,118}$/.test(village)) {
+      return { ok: false, error: 'Write village or city in English / गाँव या शहर अंग्रेज़ी में लिखें' };
     }
     if (!/^[A-Za-z][A-Za-z .'-]{1,78}$/.test(payeeName)) {
       return { ok: false, error: 'Enter payee name in English / भुगतानकर्ता का नाम अंग्रेज़ी में लिखें' };
@@ -745,7 +762,7 @@ function reportSchoolPayment(data) {
 
       // Recalculate inside the lock so two clerks cannot report the same due twice.
       var registrationSheet = getRegistrationSheet_(ss);
-      var bill = computeSchoolBill_(district, block, school, ss, registrationSheet, paymentSheet);
+      var bill = computeSchoolBill_(district, block, school, village, ss, registrationSheet, paymentSheet);
       if (bill.students < 1) {
         return { ok: false, error: 'No students registered yet for this school' };
       }
@@ -774,7 +791,8 @@ function reportSchoolPayment(data) {
         utr,
         mobile,
         now,
-        'Pending'
+        'Pending',
+        upper_(village)
       ]);
       var remaining = bill.amountDue - amount;
       var message = remaining > 0
@@ -798,16 +816,17 @@ function rebuildSchoolDues() {
   var schools = {};
   var bookRank = { Pending: 0, Packed: 1, Sent: 2 };
 
-  function keyOf(d, b, s) {
-    return compactKey_(d) + '|' + compactKey_(b) + '|' + schoolNormalizeKey_(s);
+  function keyOf(d, b, s, v) {
+    return compactKey_(d) + '|' + compactKey_(b) + '|' + schoolNormalizeKey_(s) + '|' + compactKey_(v);
   }
-  function ensure(d, b, s) {
-    var key = keyOf(d, b, s);
+  function ensure(d, b, s, v) {
+    var key = keyOf(d, b, s, v);
     if (!schools[key]) {
       schools[key] = {
         district: upper_(d),
         block: upper_(b),
         school: upper_(s),
+        village: upper_(v),
         students: 0,
         paid: 0,
         books: 'Pending'
@@ -817,11 +836,12 @@ function rebuildSchoolDues() {
   }
 
   if (reg.getLastRow() >= 2) {
-    var rows = reg.getRange(2, 7, reg.getLastRow() - 1, 3).getValues();
+    var rows = reg.getRange(2, 7, reg.getLastRow() - 1, 4).getValues();
     for (var i = 0; i < rows.length; i++) {
-      var s = String(rows[i][2] || '').trim();
+      var v = String(rows[i][3] || '').trim();
+      var s = schoolDisplayName_(rows[i][2], v);
       if (!s) continue;
-      ensure(rows[i][0], rows[i][1], s).students++;
+      ensure(rows[i][0], rows[i][1], s, v).students++;
     }
   }
 
@@ -830,7 +850,13 @@ function rebuildSchoolDues() {
     for (var j = 1; j < pays.length; j++) {
       var ps = String(pays[j][2] || '').trim();
       if (!ps) continue;
-      var rec = ensure(pays[j][0], pays[j][1], ps);
+      var pv = String(pays[j][12] || '').trim();
+      if (!pv) {
+        var comma = ps.lastIndexOf(',');
+        if (comma > 0) pv = ps.substring(comma + 1).trim();
+      }
+      ps = schoolDisplayName_(ps, pv);
+      var rec = ensure(pays[j][0], pays[j][1], ps, pv);
       var st = String(pays[j][6] || '').trim();
       if (st === 'Reported' || st === 'Paid') rec.paid += Number(pays[j][5]) || 0;
       var bk = String(pays[j][11] || 'Pending').trim() || 'Pending';
@@ -852,7 +878,7 @@ function rebuildSchoolDues() {
     var status = 'Due';
     if (r.students > 0 && balance === 0) status = 'Paid';
     else if (r.paid > 0) status = 'Reported';
-    out.push([r.district, r.block, r.school, r.students, amount, r.paid, balance, status, r.books]);
+    out.push([r.district, r.block, r.school, r.students, amount, r.paid, balance, status, r.books, r.village]);
   }
   dues.getRange(1, 1, out.length, DUES_HEADERS_.length).setValues(out);
   dues.setFrozenRows(1);
