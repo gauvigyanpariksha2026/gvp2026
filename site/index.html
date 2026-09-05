@@ -617,7 +617,7 @@ select.inp:disabled{
     var complete=[
       has('name')&&has('father')&&!!document.querySelector('input[name="gender"]:checked'),
       has('cls'),
-      has('district')&&has('block')&&has('school')&&document.getElementById('school').value.indexOf(',')>0,
+      has('district')&&has('block')&&has('school')&&has('village'),
       /^[6-9][0-9]{9}$/.test(document.getElementById('mobile').value.trim()),
       document.getElementById('declare').checked
     ];
