@@ -242,7 +242,27 @@ function schoolMatch_(sheetVal, selected) {
   if (!sel) return true;
   var s = String(sheetVal || '').trim();
   if (!s) return false;
-  return schoolNormalizeKey_(s) === schoolNormalizeKey_(sel);
+  if (schoolNormalizeKey_(s) === schoolNormalizeKey_(sel)) return true;
+
+  // Registrations made before the separate Village field was introduced put
+  // "School name, Village" in the School cell. Accept the school-name part
+  // when looking up those legacy rows so the new comma-free form can still
+  // find their bill and prior payments.
+  var comma = s.lastIndexOf(',');
+  return comma > 0 && schoolNormalizeKey_(s.substring(0, comma)) === schoolNormalizeKey_(sel);
+}
+
+// Return a displayable school name for both current and legacy rows. A comma
+// is removed only when its suffix is exactly the separately stored Village
+// value, so punctuation that is genuinely part of a school name is retained.
+function schoolDisplayName_(school, village) {
+  var name = String(school || '').trim();
+  var place = String(village || '').trim();
+  var comma = name.lastIndexOf(',');
+  if (comma > 0 && place && compactKey_(name.substring(comma + 1)) === compactKey_(place)) {
+    return name.substring(0, comma).trim();
+  }
+  return name;
 }
 
 function validLocation_(district, block) {
@@ -495,15 +515,15 @@ function countSchoolStudents_(district, block, school, sheet) {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return 0;
 
-  // Only District, Block and School are needed (G:I), not the whole row.
-  var values = sheet.getRange(2, 7, lastRow - 1, 3).getValues();
+  // G:J includes Village for legacy "School, Village" compatibility.
+  var values = sheet.getRange(2, 7, lastRow - 1, 4).getValues();
   var n = 0;
   for (var i = 0; i < values.length; i++) {
     var sheetSchool = String(values[i][2] || '').trim();
     if (!sheetSchool) continue;
     if (district && !locMatch_(values[i][0], district)) continue;
     if (block && !locMatch_(values[i][1], block)) continue;
-    if (!schoolMatch_(sheetSchool, school)) continue;
+    if (!schoolMatch_(schoolDisplayName_(sheetSchool, values[i][3]), school)) continue;
     n++;
   }
   return n;
@@ -529,6 +549,11 @@ function invalidateSchoolsCache_(district, block) {
   try {
     CacheService.getScriptCache().removeAll([
       schoolsCacheKey_('', ''),
+      // getSchools supports an optional district filter, so a newly added
+      // school also changes a block-only result (for example, ?block=Asind).
+      // Invalidate that key as well; otherwise it can remain stale for the
+      // cache TTL even though the exact district/block key is refreshed.
+      schoolsCacheKey_('', block),
       schoolsCacheKey_(district, ''),
       schoolsCacheKey_(district, block)
     ]);
@@ -550,10 +575,12 @@ function getSchools(district, block) {
   var lastRow = sheet.getLastRow();
   var out = [];
   if (lastRow >= 2) {
-    var values = sheet.getRange(2, 7, lastRow - 1, 3).getValues();
+    // G:J includes Village so legacy combined values can be displayed as
+    // plain school names in the autocomplete list.
+    var values = sheet.getRange(2, 7, lastRow - 1, 4).getValues();
     var seen = {};
     for (var i = 0; i < values.length; i++) {
-      var sheetSchool = String(values[i][2] || '').trim();
+      var sheetSchool = schoolDisplayName_(values[i][2], values[i][3]);
       if (!sheetSchool) continue;
       if (district && !locMatch_(values[i][0], district)) continue;
       if (block && !locMatch_(values[i][1], block)) continue;

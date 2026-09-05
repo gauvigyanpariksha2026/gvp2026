@@ -163,12 +163,12 @@ select.inp:disabled{
           <p class="hint" id="blockHint">जिला चुनते ही ब्लॉक सूची दिखेगी</p>
         </div>
         <div class="sm:col-span-2" id="schoolWrap">
-          <label class="lbl" for="school">विद्यालय का नाम, गाँव / शहर / School &amp; location <span class="req">*</span></label>
+          <label class="lbl" for="school">विद्यालय का नाम / School name <span class="req">*</span></label>
           <input id="school" class="inp" type="text" autocomplete="off" list="schoolList"
-                 placeholder="School name, Village or City"
+                 placeholder="School name"
                  lang="en" autocapitalize="words" spellcheck="false" required>
           <datalist id="schoolList"></datalist>
-          <p class="hint">पंजीकरण फॉर्म में लिखा पूरा नाम और स्थान — English only</p>
+          <p class="hint">पंजीकरण फॉर्म में लिखा विद्यालय का नाम — English only</p>
         </div>
       </div>
       <div class="mt-6">
@@ -426,8 +426,13 @@ blockEl.addEventListener('change',function(){
 function refreshSchoolList(){
   var datalist=$('schoolList');
   datalist.innerHTML='';
+  // A slower request for the previous selection must not replace the
+  // suggestions belonging to the current district/block.
+  var requestKey=districtEl.value+'\u0000'+blockEl.value;
+  refreshSchoolList.requestKey=requestKey;
   if(!apiReady() || !districtEl.value || !blockEl.value) return;
   GVP_API.get('getSchools',{district:districtEl.value,block:blockEl.value}).then(function(res){
+    if(refreshSchoolList.requestKey!==requestKey) return;
     if(!res||!res.ok||!res.data) return;
     res.data.forEach(function(name){
       var o=document.createElement('option'); o.value=name; datalist.appendChild(o);
@@ -449,9 +454,16 @@ $('payeeName').addEventListener('input',function(){
 
 var LAST_BILL=null;
 var LAST_BILL_KEY='';
+var LAST_BILL_LOOKUP_SCHOOL='';
 var BILL_REQUEST_ID=0;
 function schoolKey(f){
   return [f.district,f.block,f.school].join('|').toLowerCase();
+}
+function legacySchoolKey(name){
+  // Older registrations stored "School name, Village" in one field. The
+  // payment form now asks for the school name only, so use the name portion
+  // to locate an exact legacy autocomplete entry when necessary.
+  return String(name||'').split(',')[0].toLowerCase().replace(/[^a-z0-9]/g,'');
 }
 function setPayFlow(stage){
   document.querySelectorAll('[data-pay-flow]').forEach(function(item){
@@ -464,6 +476,7 @@ function hideBill(){
   BILL_REQUEST_ID++;
   LAST_BILL=null;
   LAST_BILL_KEY='';
+  LAST_BILL_LOOKUP_SCHOOL='';
   hide($('billBox')); hide($('payForm')); hide($('billErr')); hide($('done'));
   hide($('upiBox')); hide($('needsUpiBox')); hide($('zeroNote')); hide($('billPaid'));
   $('billBtn').disabled=false; $('billSpin').classList.add('hidden');
@@ -508,6 +521,26 @@ $('billBtn').addEventListener('click',function(){
 
   GVP_API.get('getSchoolBill',f)
     .then(function(res){
+      // Compatibility path for the previously deployed API: it may only
+      // know this school as "School name, Village". Find that exact legacy
+      // entry and retry without making the user type a comma or location.
+      if(!res||!res.ok||res.students>0||f.school.indexOf(',')>-1) return res;
+      return GVP_API.get('getSchools',{district:f.district,block:f.block})
+        .then(function(listRes){
+          if(requestId!==BILL_REQUEST_ID||!listRes||!listRes.ok||!listRes.data) return res;
+          var match=listRes.data.filter(function(name){
+            return name.indexOf(',')>-1 && legacySchoolKey(name)===legacySchoolKey(f.school);
+          })[0];
+          if(!match) return res;
+          return GVP_API.get('getSchoolBill',{district:f.district,block:f.block,school:match})
+            .then(function(legacyRes){
+              if(legacyRes&&legacyRes.ok&&legacyRes.students>0) legacyRes.lookupSchool=match;
+              return legacyRes||res;
+            });
+        })
+        .catch(function(){return res;});
+    })
+    .then(function(res){
       // Ignore a response for fields the user has changed while it was loading.
       if(requestId!==BILL_REQUEST_ID) return;
       $('billBtn').disabled=false; $('billSpin').classList.add('hidden');
@@ -515,6 +548,7 @@ $('billBtn').addEventListener('click',function(){
       if(!res||!res.ok){show($('billErr'),(res&&res.error)||'Could not load bill');return;}
       LAST_BILL=res;
       LAST_BILL_KEY=schoolKey(f);
+      LAST_BILL_LOOKUP_SCHOOL=res.lookupSchool||f.school;
       show($('billBox'));
       setPayFlow(2);
       if(typeof anime!=='undefined'){
@@ -589,7 +623,7 @@ $('payBtn').addEventListener('click',function(){
   }
 
   GVP_API.post('reportSchoolPayment',{
-      district:f.district, block:f.block, school:f.school,
+      district:f.district, block:f.block, school:LAST_BILL_LOOKUP_SCHOOL||f.school,
       payeeName:payeeName, utr:utr, mobile:mobile, hp:$('website').value,
       students:LAST_BILL.students, amount:amount
     })
