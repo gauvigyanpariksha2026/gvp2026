@@ -353,14 +353,22 @@ function nextRegSerial_(sheet) {
 function duplicateRegistrationExists_(sheet, name, father, mobile) {
   var last = sheet.getLastRow();
   if (last < 2) return false;
-  // C:K covers Name(0), Father(1) ... Mobile(8) in one contiguous read.
-  var values = sheet.getRange(2, 3, last - 1, 9).getValues();
   var nameKey = compactKey_(name);
   var fatherKey = compactKey_(father);
   var mobileKey = String(mobile || '').trim();
-  for (var i = 0; i < values.length; i++) {
-    if (String(values[i][8] || '').trim() !== mobileKey) continue;
-    if (compactKey_(values[i][0]) === nameKey && compactKey_(values[i][1]) === fatherKey) return true;
+
+  // Searching the Mobile column directly avoids downloading C:K for every
+  // registration. The old approach became progressively slower as the list
+  // of students grew, even though nearly every mobile number is unique.
+  var mobileRange = sheet.getRange(2, 11, last - 1, 1);
+  var matches = mobileRange.createTextFinder(mobileKey)
+    .matchCase(false)
+    .matchEntireCell(true)
+    .findAll();
+  for (var i = 0; i < matches.length; i++) {
+    var row = matches[i].getRow();
+    var identity = sheet.getRange(row, 3, 1, 2).getValues()[0];
+    if (compactKey_(identity[0]) === nameKey && compactKey_(identity[1]) === fatherKey) return true;
   }
   return false;
 }
