@@ -576,7 +576,9 @@ $('billBtn').addEventListener('click',function(){
       $('billLine').innerHTML='<span id="billStudents"></span> students × '+rupee(res.fee)+' = ₹<span id="billTotal"></span> total fee';
       countUp($('billStudents'),res.students,500);
       countUp($('billTotal'),total,700);
-      if(res.amountPaid>0){
+      if(res.amountReported>0){
+        show($('billPaid'),'Payment awaiting verification: '+rupee(res.amountReported)+' · Amount still to verify: '+rupee(res.amountDue));
+      } else if(res.amountPaid>0){
         show($('billPaid'),'Already paid: '+rupee(res.amountPaid)+' · Remaining: '+rupee(res.amountDue));
       } else {
         hide($('billPaid'));
@@ -592,17 +594,24 @@ $('billBtn').addEventListener('click',function(){
         show($('zeroNote'),'This school is fully paid. Books will be sent after verification. / शुल्क पूरा जमा है।');
         return;
       }
+      var reportableAmount=Number(res.amountReportable===undefined?res.amountDue:res.amountReportable);
+      if(reportableAmount<=0){
+        show($('zeroNote'),'A payment report for the full amount is awaiting organizer verification. / पूरा भुगतान सत्यापन के लिए लंबित है।');
+        return;
+      }
       if(res.needsUpi){
         show($('needsUpiBox'));
       } else if(res.upi && res.upi.qr){
         $('qrImg').src=res.upi.qr;
         $('upiId').textContent=res.upi.vpa||'';
-        $('upiLink').href=res.upi.link||'#';
-        $('upiLink').innerHTML='<span aria-hidden="true">⚡</span> Pay '+rupee(res.amountDue)+' <span aria-hidden="true">↗</span>';
+        var upiAmount=reportableAmount;
+        var upiLink=String(res.upi.link||'').replace(/([?&]am=)[^&]*/, '$1'+encodeURIComponent(String(upiAmount)));
+        $('upiLink').href=upiLink||'#';
+        $('upiLink').innerHTML='<span aria-hidden="true">⚡</span> Pay '+rupee(upiAmount)+' <span aria-hidden="true">↗</span>';
         show($('upiBox'));
       }
-      $('payAmount').value=res.amountDue;
-      $('payAmountHint').textContent='Full amount due is ₹'+res.amountDue+' — reduce this if you\'re paying part now';
+      $('payAmount').value=reportableAmount;
+      $('payAmountHint').textContent='You can report up to ₹'+reportableAmount+' while earlier payments are verified';
       show($('payForm'));
       setPayFlow(3);
     })
@@ -623,7 +632,8 @@ $('payBtn').addEventListener('click',function(){
   var amount=parseInt(amountStr,10);
   var NAME_EN=/^[A-Za-z][A-Za-z .'-]{1,78}$/;
   if(!payeeName||!NAME_EN.test(payeeName)){bad($('payeeName'));shakeField($('payeeName'));show($('formErr'),'भुगतानकर्ता का नाम अंग्रेज़ी में लिखें / Enter payee name in English');return;}
-  if(!/^[0-9]{1,9}$/.test(amountStr)||amount<1||amount>LAST_BILL.amountDue){bad($('payAmount'));shakeField($('payAmount'));show($('formErr'),'राशि ₹1 और ₹'+LAST_BILL.amountDue+' के बीच होनी चाहिए / Amount must be between ₹1 and ₹'+LAST_BILL.amountDue);return;}
+  var reportable=Number(LAST_BILL.amountReportable===undefined?LAST_BILL.amountDue:LAST_BILL.amountReportable);
+  if(!/^[0-9]{1,9}$/.test(amountStr)||amount<1||amount>reportable){bad($('payAmount'));shakeField($('payAmount'));show($('formErr'),'राशि ₹1 और ₹'+reportable+' के बीच होनी चाहिए / Amount must be between ₹1 and ₹'+reportable);return;}
   if(!/^[0-9]{6,24}$/.test(utr)){bad($('utr'));shakeField($('utr'));show($('formErr'),'UTR / UPI Ref No must contain 6–24 digits only');return;}
   if(!/^[6-9][0-9]{9}$/.test(mobile)){bad($('mobile'));shakeField($('mobile'));show($('formErr'),'मोबाइल नंबर सही नहीं है / Enter a 10-digit mobile');return;}
   if(!apiReady()){

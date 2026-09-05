@@ -626,13 +626,33 @@ function sumSchoolPaid_(district, block, school, village, sheet) {
   var paid = 0;
   for (var i = 0; i < values.length; i++) {
     var st = String(values[i][6] || '').trim();
-    if (st !== 'Reported' && st !== 'Paid') continue;
+    // A user-entered UTR is only a payment report. It must not lower the
+    // school bill until an organizer has checked the bank transaction and
+    // changes this Status cell to Paid in the Payments sheet.
+    if (st !== 'Paid') continue;
     if (district && !locMatch_(values[i][0], district)) continue;
     if (block && !locMatch_(values[i][1], block)) continue;
     if (!paymentLocationMatch_(values[i][2], values[i][12], school, village)) continue;
     paid += Number(values[i][5]) || 0;
   }
   return paid;
+}
+
+function sumSchoolReported_(district, block, school, village, sheet) {
+  sheet = sheet || ensurePaymentsSheet_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+
+  var values = sheet.getRange(2, 1, lastRow - 1, 13).getValues();
+  var reported = 0;
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][6] || '').trim() !== 'Reported') continue;
+    if (district && !locMatch_(values[i][0], district)) continue;
+    if (block && !locMatch_(values[i][1], block)) continue;
+    if (!paymentLocationMatch_(values[i][2], values[i][12], school, village)) continue;
+    reported += Number(values[i][5]) || 0;
+  }
+  return reported;
 }
 
 function utrAlreadyUsed_(utr, sheet) {
@@ -652,16 +672,22 @@ function computeSchoolBill_(district, block, school, village, ss, registrationSh
   paymentsSheet = paymentsSheet || ensurePaymentsSheet_(ss);
   var students = countSchoolStudents_(district, block, school, village, registrationSheet);
   var amountPaid = sumSchoolPaid_(district, block, school, village, paymentsSheet);
+  var amountReported = sumSchoolReported_(district, block, school, village, paymentsSheet);
   var amountDue = students * FEE_PER_STUDENT - amountPaid;
   if (amountDue < 0) amountDue = 0;
+  var amountReportable = amountDue - amountReported;
+  if (amountReportable < 0) amountReportable = 0;
   var status = 'Due';
   if (students > 0 && amountDue === 0) status = 'Paid';
-  else if (amountPaid > 0) status = 'Reported';
+  else if (amountReported > 0) status = 'Verification pending';
+  else if (amountPaid > 0) status = 'Partially paid';
   return {
     students: students,
     fee: FEE_PER_STUDENT,
     amountDue: amountDue,
     amountPaid: amountPaid,
+    amountReported: amountReported,
+    amountReportable: amountReportable,
     status: status
   };
 }
@@ -707,6 +733,8 @@ function getSchoolBill(district, block, school, village) {
       fee: bill.fee,
       amountDue: bill.amountDue,
       amountPaid: bill.amountPaid,
+      amountReported: bill.amountReported,
+      amountReportable: bill.amountReportable,
       status: bill.status,
       needsUpi: upiPack.needsUpi,
       upi: upiPack.upi
@@ -778,11 +806,17 @@ function reportSchoolPayment(data) {
         return { ok: false, error: 'This school is already paid / cleared' };
       }
 
-      var amount = hasAmount ? parseInt(String(amountRaw).trim(), 10) : bill.amountDue;
-      if (amount < 1 || amount > bill.amountDue) {
+      // Do not accept reports totalling more than the unpaid balance while
+      // earlier UTRs are still awaiting verification.
+      var reportableAmount = bill.amountReportable;
+      if (reportableAmount <= 0) {
+        return { ok: false, error: 'A payment report is already awaiting verification for this school' };
+      }
+      var amount = hasAmount ? parseInt(String(amountRaw).trim(), 10) : reportableAmount;
+      if (amount < 1 || amount > reportableAmount) {
         return {
           ok: false,
-          error: 'Amount must be between ₹1 and ₹' + bill.amountDue + ' (the amount currently due)'
+          error: 'Amount must be between ₹1 and ₹' + reportableAmount + ' while earlier reports are verified'
         };
       }
       var students = bill.students;
@@ -802,11 +836,8 @@ function reportSchoolPayment(data) {
         'Pending',
         upper_(village)
       ]);
-      var remaining = bill.amountDue - amount;
-      var message = remaining > 0
-        ? 'Partial payment reported (₹' + amount + '). ₹' + remaining + ' still due. Books will be sent after full payment is verified.'
-        : 'Payment reported. Books will be sent after verification.';
-      return { ok: true, message: message, amountPaidNow: amount, remainingDue: remaining };
+      var message = 'Payment report for ₹' + amount + ' received. It will be counted after the organizer verifies the UTR.';
+      return { ok: true, message: message, amountReportedNow: amount, remainingDue: bill.amountDue };
     } finally {
       lock.releaseLock();
     }
@@ -866,7 +897,7 @@ function rebuildSchoolDues() {
       ps = schoolDisplayName_(ps, pv);
       var rec = ensure(pays[j][0], pays[j][1], ps, pv);
       var st = String(pays[j][6] || '').trim();
-      if (st === 'Reported' || st === 'Paid') rec.paid += Number(pays[j][5]) || 0;
+      if (st === 'Paid') rec.paid += Number(pays[j][5]) || 0;
       var bk = String(pays[j][11] || 'Pending').trim() || 'Pending';
       if ((bookRank[bk] || 0) > (bookRank[rec.books] || 0)) rec.books = bk;
     }
