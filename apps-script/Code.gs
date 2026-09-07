@@ -1124,7 +1124,7 @@ function rebuildSchoolDues() {
 
 // ---------------------------------------------------------------------
 // ONE-TIME MAINTENANCE — run manually from the Apps Script editor
-// (select fixSchoolNameSplits_ from the function dropdown, click Run).
+// (select fixSchoolNameSplits from the function dropdown, click Run).
 // Not called by any API action; safe to delete after running once.
 //
 // Fixes registrations for a real school that got split across different
@@ -1141,7 +1141,7 @@ function rebuildSchoolDues() {
 // for the Parda Saroda case also Village) — nothing here does a partial
 // or fuzzy replace, so a row that doesn't match one of these entries
 // exactly is left untouched.
-function fixSchoolNameSplits_() {
+function fixSchoolNameSplits() {
   var sheet = getRegistrationSheet_(getSpreadsheet_());
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) {
