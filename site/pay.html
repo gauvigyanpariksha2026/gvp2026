@@ -569,6 +569,30 @@ blockEl.addEventListener('change',function(){
   refreshVillageList();
 });
 
+function translitNorm(s){
+  var k = String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!k) return '';
+  k = k.replace(/w/g, 'v');
+  k = k.replace(/aa+/g, 'a')
+       .replace(/ee+/g, 'i')
+       .replace(/oo+/g, 'u')
+       .replace(/ii+/g, 'i')
+       .replace(/uu+/g, 'u');
+  k = k.replace(/ja*va*d[ah]*/g, 'javada');
+  return k;
+}
+
+function translitMatch(itemText, queryText){
+  if (!queryText) return true;
+  if (!itemText) return false;
+  var it = String(itemText).toLowerCase();
+  var qt = String(queryText).toLowerCase();
+  if (it.indexOf(qt) > -1) return true;
+  var ni = translitNorm(itemText);
+  var nq = translitNorm(queryText);
+  return !!(ni && nq && (ni.indexOf(nq) > -1 || nq.indexOf(ni) > -1));
+}
+
 // Custom dropdown replacing the native <datalist> popup — on Android
 // Chrome, datalist suggestions render as an overlay that doesn't reserve
 // layout space and visually collides with whatever markup sits below the
@@ -578,7 +602,7 @@ function createAutocomplete(inputEl,listEl){
   var items=[];
   function render(){
     var q=inputEl.value.trim().toLowerCase();
-    var filtered=q?items.filter(function(v){return v.toLowerCase().indexOf(q)>-1;}):items;
+    var filtered=q?items.filter(function(v){return translitMatch(v, q);}):items;
     filtered=filtered.slice(0,8);
     listEl.innerHTML='';
     if(!filtered.length){ hide(listEl); return; }
@@ -685,7 +709,7 @@ function legacySchoolKey(name){
   // Older registrations stored "School name, Village" in one field. The
   // payment form now asks for the school name only, so use the name portion
   // to locate an exact legacy autocomplete entry when necessary.
-  return String(name||'').split(',')[0].toLowerCase().replace(/[^a-z0-9]/g,'');
+  return translitNorm(String(name||'').split(',')[0]);
 }
 function setPayFlow(stage){
   document.querySelectorAll('[data-pay-flow]').forEach(function(item){
@@ -796,24 +820,46 @@ $('billBtn').addEventListener('click',function(){
 
   GVP_API.get('getSchoolBill',f)
     .then(function(res){
-      // Compatibility path for the previously deployed API: it may only
-      // know this school as "School name, Village". Find that exact legacy
-      // entry and retry without making the user type a comma or location.
-      if(!res||!res.ok||res.students>0||f.school.indexOf(',')>-1) return res;
+      // Compatibility and transliteration recovery path:
+      // If no students found, check getSchools & getVillages for transliteration variants
+      // (e.g. JAWADA vs JAVADA / JAWDA / JAVDA, or legacy "School, Village" formats)
+      if(!res||!res.ok||res.students>0) return res;
       return GVP_API.get('getSchools',{district:f.district,block:f.block})
         .then(function(listRes){
           if(requestId!==BILL_REQUEST_ID||!listRes||!listRes.ok||!listRes.data) return res;
           var match=listRes.data.filter(function(name){
             var parts=String(name).split(',');
-            return parts.length>1 && legacySchoolKey(name)===legacySchoolKey(f.school) &&
-              String(parts[parts.length-1]).toLowerCase().replace(/[^a-z0-9]/g,'')===
-              String(f.village).toLowerCase().replace(/[^a-z0-9]/g,'');
+            var sName=parts[0];
+            var vName=parts.length>1?parts[parts.length-1]:'';
+            var sMatch=legacySchoolKey(sName)===legacySchoolKey(f.school) || translitMatch(sName, f.school);
+            var vMatch=!vName || legacySchoolKey(vName)===legacySchoolKey(f.village) || translitMatch(vName, f.village);
+            return sMatch && vMatch;
           })[0];
           if(!match) return res;
-          return GVP_API.get('getSchoolBill',{district:f.district,block:f.block,school:match,village:f.village})
-            .then(function(legacyRes){
-              if(legacyRes&&legacyRes.ok&&legacyRes.students>0) legacyRes.lookupSchool=match;
-              return legacyRes||res;
+          return GVP_API.get('getVillages',{district:f.district,block:f.block,school:match})
+            .then(function(vRes){
+              var targetVillage=f.village;
+              if(vRes&&vRes.ok&&vRes.data&&vRes.data.length){
+                var matchedV=vRes.data.filter(function(v){
+                  return legacySchoolKey(v)===legacySchoolKey(f.village) || translitMatch(v, f.village);
+                })[0];
+                if(matchedV) targetVillage=matchedV;
+              }
+              return GVP_API.get('getSchoolBill',{district:f.district,block:f.block,school:match,village:targetVillage})
+                .then(function(retryRes){
+                  if(retryRes&&retryRes.ok&&retryRes.students>0){
+                    retryRes.lookupSchool=match;
+                    retryRes.lookupVillage=targetVillage;
+                  }
+                  return retryRes||res;
+                });
+            })
+            .catch(function(){
+              return GVP_API.get('getSchoolBill',{district:f.district,block:f.block,school:match,village:f.village})
+                .then(function(retryRes){
+                  if(retryRes&&retryRes.ok&&retryRes.students>0) retryRes.lookupSchool=match;
+                  return retryRes||res;
+                });
             });
         })
         .catch(function(){return res;});
@@ -827,7 +873,8 @@ $('billBtn').addEventListener('click',function(){
       LAST_BILL=res;
       LAST_BILL_KEY=schoolKey(f);
       LAST_BILL_LOOKUP_SCHOOL=res.lookupSchool||f.school;
-      LAST_BILL_FIELDS={district:f.district,block:f.block,school:LAST_BILL_LOOKUP_SCHOOL,village:f.village};
+      LAST_BILL_LOOKUP_VILLAGE=res.lookupVillage||f.village;
+      LAST_BILL_FIELDS={district:f.district,block:f.block,school:LAST_BILL_LOOKUP_SCHOOL,village:LAST_BILL_LOOKUP_VILLAGE};
       LAST_STUDENTS=[];
       hide($('studentsList')); hide($('studentsDownloadWrap')); $('studentsList').innerHTML=''; $('studentsMobile').value='';
       if(res.students>0){
@@ -1065,7 +1112,7 @@ $('payBtn').addEventListener('click',function(){
   }
 
   GVP_API.post('reportSchoolPayment',{
-      district:f.district, block:f.block, school:LAST_BILL_LOOKUP_SCHOOL||f.school, village:f.village,
+      district:f.district, block:f.block, school:LAST_BILL_LOOKUP_SCHOOL||f.school, village:(LAST_BILL_FIELDS&&LAST_BILL_FIELDS.village)||f.village,
       payeeName:payeeName, utr:utr, mobile:mobile, hp:$('website').value,
       students:LAST_BILL.students, amount:amount
     })

@@ -825,6 +825,30 @@ blockEl.addEventListener('change',function(){
   refreshVillageList();
 });
 
+function translitNorm(s){
+  var k = String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!k) return '';
+  k = k.replace(/w/g, 'v');
+  k = k.replace(/aa+/g, 'a')
+       .replace(/ee+/g, 'i')
+       .replace(/oo+/g, 'u')
+       .replace(/ii+/g, 'i')
+       .replace(/uu+/g, 'u');
+  k = k.replace(/ja*va*d[ah]*/g, 'javada');
+  return k;
+}
+
+function translitMatch(itemText, queryText){
+  if (!queryText) return true;
+  if (!itemText) return false;
+  var it = String(itemText).toLowerCase();
+  var qt = String(queryText).toLowerCase();
+  if (it.indexOf(qt) > -1) return true;
+  var ni = translitNorm(itemText);
+  var nq = translitNorm(queryText);
+  return !!(ni && nq && (ni.indexOf(nq) > -1 || nq.indexOf(ni) > -1));
+}
+
 // Custom dropdown replacing the native <datalist> popup — on Android
 // Chrome, datalist suggestions render as an overlay that doesn't reserve
 // layout space and visually collides with whatever markup sits below the
@@ -834,7 +858,7 @@ function createAutocomplete(inputEl,listEl){
   var items=[];
   function render(){
     var q=inputEl.value.trim().toLowerCase();
-    var filtered=q?items.filter(function(v){return v.toLowerCase().indexOf(q)>-1;}):items;
+    var filtered=q?items.filter(function(v){return translitMatch(v, q);}):items;
     filtered=filtered.slice(0,8);
     listEl.innerHTML='';
     if(!filtered.length){ hide(listEl); return; }

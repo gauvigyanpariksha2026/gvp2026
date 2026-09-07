@@ -130,6 +130,52 @@ assert.equal(narrowResult.ok, true);
 assert.equal(narrowResult.data[0].regNo, 'GVP-2026-00001');
 assert.equal(Object.prototype.hasOwnProperty.call(narrowResult.data[0], 'omrNo'), false);
 
+// Transliteration & spelling tolerance tests for Jawada / Javada / Jawda / Javda variants:
+assert.equal(context.locMatch_('JAVADA', 'JAWADA'), true);
+assert.equal(context.locMatch_('JAWDA', 'JAWADA'), true);
+assert.equal(context.locMatch_('JAVDA', 'JAWADA'), true);
+assert.equal(context.locMatch_('JAWAD', 'JAWADA'), true);
+assert.equal(context.locMatch_('JAVAD', 'JAWADA'), true);
+assert.equal(context.locMatch_('JAWADA', 'JAWAJA'), false);
+assert.equal(context.locMatch_('JAWADA', 'JODHPUR'), false);
+
+const jawadaSchoolKey = context.schoolNormalizeKey_('GSSS JAVADA');
+assert.equal(context.schoolNormalizeKey_('GSSS JAWADA'), jawadaSchoolKey);
+assert.equal(context.schoolNormalizeKey_('G.S.S.S. JAWADA'), jawadaSchoolKey);
+assert.equal(context.schoolNormalizeKey_('G S S S JAWADA'), jawadaSchoolKey);
+assert.equal(context.schoolNormalizeKey_('Govt Sr Sec School Jawada'), jawadaSchoolKey);
+assert.equal(context.schoolNormalizeKey_('Govt. Sr. Sec. School Javada'), jawadaSchoolKey);
+assert.equal(context.schoolNormalizeKey_('GSSS JAWDA'), jawadaSchoolKey);
+assert.equal(context.schoolNormalizeKey_('GSSS JAVDA'), jawadaSchoolKey);
+assert.equal(context.schoolNormalizeKey_('GSSS JAWAD'), jawadaSchoolKey);
+assert.equal(context.schoolNormalizeKey_('GSSS JAVAD'), jawadaSchoolKey);
+
+// Verify cross-spelling retrieval of students registered with JAVADA when queried with JAWADA:
+const jawadaStudent = [
+  'RAMESH', 'FATHER', 'Male', '10', 'Chittorgarh', 'Nimbahera',
+  'GSSS JAVADA', 'JAVADA', '9876599999', '26000003', '2026', '', ''
+];
+const jawadaStudentSheet = {
+  getLastRow: () => 2,
+  getMaxColumns: () => 13,
+  getRange: () => ({ getValues: () => [fullRegistrationRow(jawadaStudent, 'GVP-2026-00003', 12).slice(0, 13)] })
+};
+context.getRegistrationSheet_ = () => jawadaStudentSheet;
+const jawadaResult = context.getSchoolStudents(
+  'Chittorgarh', 'Nimbahera', 'GSSS JAWADA', 'JAWADA', '9876599999'
+);
+assert.equal(jawadaResult.ok, true);
+assert.equal(jawadaResult.data.length, 1);
+assert.equal(jawadaResult.data[0].regNo, 'GVP-2026-00003');
+assert.equal(jawadaResult.data[0].name, 'RAMESH');
+
+const jawdaResult = context.getSchoolStudents(
+  'Chittorgarh', 'Nimbahera', 'Govt Sr Sec School Jawda', 'JAWDA', '9876599999'
+);
+assert.equal(jawdaResult.ok, true);
+assert.equal(jawdaResult.data.length, 1);
+assert.equal(jawdaResult.data[0].name, 'RAMESH');
+
 // OMR backfill writes L for current rows and R for legacy rows without
 // replacing the legacy Village value that also lives in column L.
 const writes = {};

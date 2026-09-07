@@ -187,6 +187,25 @@ function compactKey_(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+/**
+ * Phonetic/transliteration normalization for Indian English location and school names.
+ * Equates W and V (Hindi 'व' transliteration), collapses doubled vowels (aa->a, ee->i, oo->u),
+ * and maps phonetic variants of places like Jawada (Jawada/Javada/Jawda/Javda/Jawad/Javad)
+ * to a canonical key so spelling drift across sessions does not break billing or student lookup.
+ */
+function phoneticKey_(s) {
+  var k = compactKey_(s);
+  if (!k) return '';
+  k = k.replace(/w/g, 'v');
+  k = k.replace(/aa+/g, 'a')
+       .replace(/ee+/g, 'i')
+       .replace(/oo+/g, 'u')
+       .replace(/ii+/g, 'i')
+       .replace(/uu+/g, 'u');
+  k = k.replace(/ja*va*d[ah]*/g, 'javada');
+  return k;
+}
+
 function upper_(s) {
   return String(s || '').trim().toUpperCase();
 }
@@ -202,6 +221,7 @@ function locMatch_(sheetVal, selected) {
   if (compactKey_(s) && compactKey_(s) === compactKey_(sel)) return true;
   var slash = s.lastIndexOf('/');
   if (slash > -1 && s.substring(slash + 1).trim().toLowerCase() === sell) return true;
+  if (phoneticKey_(s) && phoneticKey_(s) === phoneticKey_(sel)) return true;
   return false;
 }
 
@@ -232,10 +252,16 @@ function levenshtein_(a, b) {
 // different school, or it would steer someone into paying that school's
 // bill by mistake. See computeSchoolBill_'s villagesOnFile.
 function villageSimilar_(a, b) {
+  if (locMatch_(a, b)) return true;
   var ak = compactKey_(a), bk = compactKey_(b);
   if (!ak || !bk) return false;
   if (ak === bk) return true;
   if (ak.indexOf(bk) > -1 || bk.indexOf(ak) > -1) return true;
+  var ap = phoneticKey_(a), bp = phoneticKey_(b);
+  if (ap && bp) {
+    if (ap === bp || ap.indexOf(bp) > -1 || bp.indexOf(ap) > -1) return true;
+    if (levenshtein_(ap, bp) <= 2) return true;
+  }
   return levenshtein_(ak, bk) <= 2;
 }
 
@@ -271,17 +297,35 @@ var SCHOOL_WORD_SYNONYMS_ = {
 // school match. Used only for the School field — district/block come from
 // a fixed dropdown and never need this.
 function schoolNormalizeKey_(s) {
-  var words = String(s || '').toLowerCase().split(/[^a-z0-9]+/).filter(function (w) { return w; });
+  var rawWords = String(s || '').toLowerCase().split(/[^a-z0-9]+/).filter(function (w) { return Boolean(w); });
+  var words = [];
+  for (var i = 0; i < rawWords.length; i++) {
+    if (rawWords[i].length === 1) {
+      var acro = '';
+      var j = i;
+      while (j < rawWords.length && rawWords[j].length === 1) {
+        acro += rawWords[j];
+        j++;
+      }
+      if (acro.length > 1) {
+        words.push(acro);
+        i = j - 1;
+        continue;
+      }
+    }
+    words.push(rawWords[i]);
+  }
+
   var out = [];
-  for (var i = 0; i < words.length; i++) {
-    var w = words[i];
+  for (var k = 0; k < words.length; k++) {
+    var w = words[k];
     if (SCHOOL_ABBR_EXPAND_[w]) {
       out = out.concat(SCHOOL_ABBR_EXPAND_[w]);
     } else {
       out.push(SCHOOL_WORD_SYNONYMS_[w] || w);
     }
   }
-  return out.join('');
+  return phoneticKey_(out.join(''));
 }
 
 function schoolMatch_(sheetVal, selected) {
@@ -307,7 +351,7 @@ function schoolDisplayName_(school, village) {
   var name = String(school || '').trim();
   var place = String(village || '').trim();
   var comma = name.lastIndexOf(',');
-  if (comma > 0 && place && compactKey_(name.substring(comma + 1)) === compactKey_(place)) {
+  if (comma > 0 && place && locMatch_(name.substring(comma + 1), place)) {
     return name.substring(0, comma).trim();
   }
   return name;
@@ -834,7 +878,7 @@ function getVillages(district, block, school) {
       if (!schoolMatch_(schoolDisplayName_(loc.school, loc.village), school)) continue;
       var place = loc.village;
       if (!place) continue;
-      var key = compactKey_(place);
+      var key = phoneticKey_(place);
       if (seen[key]) continue;
       seen[key] = true;
       out.push(place);
