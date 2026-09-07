@@ -245,6 +245,66 @@ ocrSamples.forEach((sample) => {
   assert.equal(extractUtrTestFn(sample.text), sample.expected, `OCR extraction failed for ${sample.text}`);
 });
 
+// Verify that selecting an item from autocomplete immediately closes the list
+// and does not get stuck or reopen due to dispatched input events.
+for (const file of ['site/pay.html', 'site/index.html']) {
+  const html = fs.readFileSync(path.join(root, file), 'utf8');
+  const start = html.indexOf('function createAutocomplete(inputEl,listEl){');
+  const end = html.indexOf('var schoolAC=createAutocomplete', start);
+  assert.ok(start > -1 && end > -1, `createAutocomplete not found in ${file}`);
+  const code = html.substring(start, end).trim();
+
+  let inputVal = '';
+  let listHidden = true;
+  let listChildren = [];
+  const listeners = {};
+
+  const inputEl = {
+    get value() { return inputVal; },
+    set value(v) { inputVal = v; },
+    offsetTop: 0, offsetHeight: 30,
+    setAttribute() {},
+    addEventListener(evt, fn) { (listeners[evt] = listeners[evt] || []).push(fn); },
+    dispatchEvent(e) { (listeners[e.type] || []).forEach((fn) => fn(e)); }
+  };
+
+  const listEl = {
+    classList: {
+      contains(c) { return c === 'hidden' ? listHidden : false; },
+      add(c) { if (c === 'hidden') listHidden = true; },
+      remove(c) { if (c === 'hidden') listHidden = false; }
+    },
+    setAttribute() {},
+    style: {},
+    get children() { return listChildren; },
+    set innerHTML(v) { if (v === '') listChildren = []; },
+    appendChild(d) { listChildren.push(d); }
+  };
+
+  const globalScope = {
+    hide(el) { el.classList.add('hidden'); },
+    show(el) { el.classList.remove('hidden'); },
+    translitMatch(a, b) { return a.toLowerCase().includes(b.toLowerCase()); },
+    document: { createElement() { return { setAttribute() {}, addEventListener(e, cb) { this['on' + e] = cb; }, className: '', textContent: '' }; }, activeElement: inputEl },
+    setTimeout(fn) { fn(); },
+    Event: function (t) { this.type = t; }
+  };
+
+  const fn = new Function('inputEl', 'listEl', 'hide', 'show', 'translitMatch', 'document', 'setTimeout', 'Event', `${code}\n return createAutocomplete(inputEl, listEl);`);
+  const ac = fn(inputEl, listEl, globalScope.hide, globalScope.show, globalScope.translitMatch, globalScope.document, globalScope.setTimeout, globalScope.Event);
+
+  ac.setItems(['GSSS KOTRI', 'GSSS MANDAL']);
+  inputEl.value = 'GSSS';
+  inputEl.dispatchEvent({ type: 'input' });
+  assert.equal(listHidden, false, `Dropdown should open on typing in ${file}`);
+  assert.equal(listChildren.length, 2);
+
+  // Click on first item
+  listChildren[0].onmousedown({ preventDefault() {} });
+  assert.equal(listHidden, true, `Dropdown must be closed immediately after selection in ${file}`);
+  assert.equal(inputVal, 'GSSS KOTRI');
+}
+
 // Exercise the browser-independent PDF path with enough rows to force three
 // pages. This catches broken PDF object numbering and page-splitting changes
 // without writing a test artifact to the repository.

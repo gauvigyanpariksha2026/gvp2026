@@ -663,11 +663,15 @@ function createAutocomplete(inputEl,listEl){
     activeIndex = index;
   }
 
+  var isSelecting=false;
+
   function selectItem(v){
+    isSelecting=true;
     inputEl.value=v;
     closeList();
     inputEl.dispatchEvent(new Event('input'));
     inputEl.dispatchEvent(new Event('change'));
+    isSelecting=false;
   }
 
   function closeList(){
@@ -703,7 +707,10 @@ function createAutocomplete(inputEl,listEl){
     inputEl.setAttribute('aria-expanded', 'true');
   }
 
-  inputEl.addEventListener('input',render);
+  inputEl.addEventListener('input',function(){
+    if(isSelecting) return;
+    render();
+  });
   inputEl.addEventListener('focus',render);
   inputEl.addEventListener('blur',function(){ setTimeout(closeList,150); });
 
@@ -743,9 +750,8 @@ function createAutocomplete(inputEl,listEl){
   return {
     setItems:function(newItems){
       items=newItems||[];
-      // An async response can arrive after the field lost focus. Do not
-      // reopen its suggestion popup over whatever the user moved on to.
-      if(document.activeElement===inputEl) render();
+      // Only re-render if the input is currently focused and the list was already open
+      if(document.activeElement===inputEl && !listEl.classList.contains('hidden')) render();
       else closeList();
     }
   };
