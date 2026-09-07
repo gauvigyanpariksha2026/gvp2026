@@ -105,6 +105,20 @@ select.inp:disabled{
 .payment-banner .pb-title{font-weight:600;font-size:1rem}
 .payment-banner .pb-sub{font-size:.8rem;opacity:.85;margin-top:.15rem}
 .payment-banner .pb-arrow{font-size:1.25rem;flex-shrink:0}
+
+/* ---------- quick student list banner card ---------- */
+.quick-students-card{display:flex;flex-direction:column;gap:1.1rem;padding:1.35rem 1.4rem;margin:1.75rem 0 2rem;border-radius:1rem;border:1px solid rgba(74,108,66,.35);background:linear-gradient(135deg,rgba(74,108,66,.09),rgba(243,232,210,.75));box-shadow:0 3px 12px rgba(46,32,19,.04)}
+@media (min-width: 640px){
+  .quick-students-card{flex-direction:row;align-items:center;justify-content:space-between;gap:1.5rem;padding:1.4rem 1.75rem}
+}
+.quick-students-card .qsc-title{font-weight:600;font-size:1rem;color:#2e2013;display:flex;align-items:center;gap:.5rem}
+.quick-students-card .qsc-desc{font-size:.875rem;color:rgba(46,32,19,.85);line-height:1.65;margin-top:.35rem}
+.quick-students-card .qsc-en{font-size:.78rem;color:rgba(46,32,19,.6);font-family:"Cormorant Garamond",Georgia,serif;letter-spacing:.025em;line-height:1.45;margin-top:.25rem}
+.quick-students-card .qsc-btn{flex-shrink:0;white-space:nowrap;background-color:#4A6C42;color:#fdf6ea;padding:.75rem 1.4rem;font-size:.875rem;font-weight:600;border-radius:.55rem;border:none;cursor:pointer;transition:transform .15s ease,background-color .15s ease}
+.quick-students-card .qsc-btn:hover{background-color:#3b5834;transform:translateY(-1px)}
+@media (max-width: 639px){
+  .quick-students-card .qsc-btn{width:100%;text-align:center;padding:.85rem 1rem}
+}
 </style>
 <link rel="stylesheet" href="css/app.css?v=20260907">
 </head>
@@ -154,10 +168,16 @@ select.inp:disabled{
       <div data-pay-flow="3"><b aria-hidden="true">✅</b><span><strong>पुष्टि</strong><small>Confirm</small></span></div>
     </div>
 
-    <div class="rounded-xl shadow-sm px-6 py-5 mt-6 mb-6" style="background:linear-gradient(135deg,#4A6C42,#A94B2C)">
-      <p class="text-xs uppercase tracking-widest mb-1" style="color:#fdf6ea;opacity:.9">🎓 भुगतान में समस्या आ रही है? / Having trouble with payment?</p>
-      <p class="text-sm" style="color:#fdf6ea;opacity:.95">आप बिना भुगतान किए भी अपने विद्यालय की पंजीकृत छात्र सूची देख व PDF डाउनलोड कर सकते हैं। / You can still view and download your school's registered student list without paying.</p>
-      <button id="quickStudentsBtn" type="button" class="gvp-pulse mt-3" style="padding:.6rem 1.25rem;font-size:.85rem;font-weight:600;background:#fdf6ea;color:#A94B2C;border-radius:.5rem;border:none;cursor:pointer">विद्यार्थी सूची देखें / View student list →</button>
+    <div class="quick-students-card">
+      <div>
+        <div class="qsc-title">
+          <span aria-hidden="true">📋</span>
+          <span>केवल छात्र सूची देखना या PDF डाउनलोड करना है?</span>
+        </div>
+        <p class="qsc-desc">यदि अभी शुल्क भुगतान नहीं करना है, तो भी आप अपने विद्यालय की पंजीकृत छात्र सूची देख सकते हैं व PDF डाउनलोड कर सकते हैं।</p>
+        <p class="qsc-en">Having trouble with payment? View and download your school's registered student list directly without paying.</p>
+      </div>
+      <button id="quickStudentsBtn" type="button" class="qsc-btn gvp-pulse">विद्यार्थी सूची देखें / View student list →</button>
     </div>
 
     <div id="loadErr" class="hidden mb-6 rounded-lg border border-terra/40 bg-terra/10 px-4 py-3 text-sm"></div>
