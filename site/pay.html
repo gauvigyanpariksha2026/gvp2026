@@ -287,12 +287,14 @@ select.inp:disabled{
       <div id="upiBox" class="hidden mt-6 text-center">
         <p class="lbl"><span class="upi-mark" aria-hidden="true">↗</span> Pay with UPI / यूपीआई से भुगतान करें</p>
         <div class="qr-frame"><span class="qr-corner qr-tl"></span><span class="qr-corner qr-tr"></span><span class="qr-corner qr-bl"></span><span class="qr-corner qr-br"></span><img id="qrImg" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" width="240" height="240" alt="UPI QR"></div>
-        <div class="mt-4 inline-flex flex-wrap items-center justify-center gap-2.5 rounded-xl border-2 border-gold/50 bg-sand/80 px-4 py-2.5 shadow-sm">
-          <span class="text-xs text-ink/65 font-medium">UPI ID:</span>
-          <span id="upiId" class="font-mono text-base sm:text-lg font-bold tracking-wider text-terra"></span>
-          <button id="copyUpiBtn" type="button" class="inline-flex items-center gap-1.5 rounded-lg bg-terra text-cream hover:bg-terra-dark px-3.5 py-1.5 text-sm font-semibold transition shadow-xs print-hide active:scale-95" title="UPI ID कॉपी करें">
-            <span aria-hidden="true">📋</span> <span id="copyUpiTxt">UPI ID कॉपी करें</span>
-          </button>
+        <div>
+          <div class="upi-id-badge">
+            <span class="upi-label">UPI ID:</span>
+            <span id="upiId" class="upi-val"></span>
+            <button id="copyUpiBtn" type="button" class="upi-copy-btn print-hide" title="UPI ID कॉपी करें">
+              <span aria-hidden="true">📋</span> <span id="copyUpiTxt">UPI ID कॉपी करें</span>
+            </button>
+          </div>
         </div>
         <p class="mt-4">
           <a id="upiLink" class="btn upi-pay-btn" href="#" target="_top" rel="noopener"><span aria-hidden="true">⚡</span> Pay <span aria-hidden="true">↗</span></a>
@@ -326,13 +328,13 @@ select.inp:disabled{
                  pattern="[0-9]{6,24}" autocomplete="off" maxlength="24" required>
           <p class="hint">UPI reference — numbers only, usually 12 digits</p>
           <!-- Prominent Screenshot Upload & Drag/Drop Box -->
-          <div id="receiptDropZone" class="mt-3 p-3.5 rounded-xl border-2 border-dashed border-gold/60 bg-sand/70 hover:bg-sand/90 transition text-center flex flex-col items-center justify-center gap-2 shadow-2xs">
-            <label for="receiptUpload" id="receiptUploadLbl" class="cursor-pointer inline-flex items-center gap-2 rounded-lg bg-terra text-cream hover:bg-terra-dark px-4 py-2 text-sm font-semibold transition shadow-xs active:scale-95">
+          <div id="receiptDropZone" class="receipt-drop-zone">
+            <label for="receiptUpload" id="receiptUploadLbl" class="receipt-upload-btn">
               <span aria-hidden="true" class="text-base">📷</span>
               <span id="receiptUploadTxt">रसीद स्क्रीनशॉट अपलोड करें (ऑटो-UTR)</span>
             </label>
             <input id="receiptUpload" type="file" accept="image/*" class="sr-only">
-            <p class="text-xs text-ink/65">या स्क्रीनशॉट यहाँ ड्रॉप करें (Drag &amp; Drop) अथवा <strong>Ctrl+V</strong> दबाकर सीधे पेस्ट करें</p>
+            <p class="text-xs text-ink/70" style="margin:0">या स्क्रीनशॉट यहाँ ड्रॉप करें (Drag &amp; Drop) अथवा <strong>Ctrl+V</strong> दबाकर सीधे पेस्ट करें</p>
             <div id="ocrStatus" class="text-xs text-ink/80 min-h-[1.25rem]"></div>
           </div>
         </div>
@@ -1482,13 +1484,13 @@ $('copyUpiBtn').addEventListener('click',function(){
     ['dragenter', 'dragover'].forEach(function(evt) {
       dropZone.addEventListener(evt, function(e) {
         e.preventDefault(); e.stopPropagation();
-        dropZone.classList.add('border-terra', 'bg-sand');
+        dropZone.classList.add('dragover');
       });
     });
     ['dragleave', 'drop'].forEach(function(evt) {
       dropZone.addEventListener(evt, function(e) {
         e.preventDefault(); e.stopPropagation();
-        dropZone.classList.remove('border-terra', 'bg-sand');
+        dropZone.classList.remove('dragover');
       });
     });
     dropZone.addEventListener('drop', function(e) {
