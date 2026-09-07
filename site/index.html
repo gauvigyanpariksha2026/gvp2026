@@ -1237,6 +1237,46 @@ $('registerAnotherBtn').addEventListener('click',function(){
   setTimeout(function(){ $('name').focus(); }, 350);
   if(window.updateRegistrationProgress) window.updateRegistrationProgress();
 });
+
+// Smart Phone Number Paste Cleaner
+function attachPhonePasteCleaner(el) {
+  if (!el) return;
+  el.addEventListener('paste', function(e) {
+    var pasted = (e.clipboardData || window.clipboardData || {}).getData ? (e.clipboardData || window.clipboardData).getData('text') : '';
+    if (pasted) {
+      var cleaned = pasted.replace(/\s+/g, '').replace(/^[+]?(91|0)(?=[6-9][0-9]{9}$)/, '').replace(/[^0-9]/g, '');
+      if (cleaned.length === 10 && /^[6-9]/.test(cleaned)) {
+        e.preventDefault();
+        el.value = cleaned;
+        el.dispatchEvent(new Event('input'));
+      }
+    }
+  });
+}
+attachPhonePasteCleaner($('mobile'));
+
+// Unsaved changes guard: alerts before closing if form is partially filled
+window.addEventListener('beforeunload', function(e) {
+  if (isSubmitting) return;
+  var mainEl = document.querySelector('main');
+  var formVisible = mainEl && !mainEl.classList.contains('hidden');
+  var hasData = formVisible && (
+    ($('name') && $('name').value.trim()) ||
+    ($('father') && $('father').value.trim()) ||
+    ($('mobile') && $('mobile').value.trim())
+  );
+  if (hasData) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+// PWA Service Worker Registration
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('sw.js').catch(function() {});
+  });
+}
 </script>
 </body>
 </html>

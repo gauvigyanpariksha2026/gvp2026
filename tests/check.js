@@ -222,6 +222,9 @@ for (const relative of ['site/index.html', 'site/pay.html']) {
 for (const file of fs.readdirSync(path.join(root, 'site', 'js')).filter((name) => name.endsWith('.js'))) {
   new Function(fs.readFileSync(path.join(root, 'site', 'js', file), 'utf8'));
 }
+if (fs.existsSync(path.join(root, 'site', 'sw.js'))) {
+  new Function(fs.readFileSync(path.join(root, 'site', 'sw.js'), 'utf8'));
+}
 
 // Verify that the OCR UTR auto-extraction logic in site/pay.html correctly parses
 // PhonePe, Google Pay, Paytm, BHIM and OCR O/0 transliteration variations.

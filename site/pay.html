@@ -218,7 +218,13 @@ select.inp:disabled{
           <button id="studentsMobileGo" type="button" class="btn" style="padding:.55rem 1.25rem;font-size:.85rem;background:#4A6C42">सूची दिखाएं / Show →</button>
         </div>
         <p class="hint mt-2 text-ink/60">Enter the mobile number of any student registered from this school.</p>
-        <div id="studentsList" class="hidden mt-3 rounded-lg border border-gold/30 bg-cream/90 px-4 py-3 text-sm overflow-x-auto" style="max-height:300px;overflow-y:auto"></div>
+        <div id="studentSearchWrap" class="hidden mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div class="relative flex-1 max-w-sm">
+            <input id="studentSearchInput" type="text" class="inp text-xs py-1.5 px-3 rounded-md bg-sand/70 border-gold/40" placeholder="🔍 नाम, अनुक्रमांक या कक्षा से खोजें… / Filter students…">
+          </div>
+          <span id="studentFilterCount" class="text-xs text-ink/70 font-medium"></span>
+        </div>
+        <div id="studentsList" class="hidden mt-2 rounded-lg border border-gold/30 bg-cream/90 px-4 py-3 text-sm overflow-x-auto" style="max-height:320px;overflow-y:auto"></div>
         <div id="studentsDownloadWrap" class="hidden mt-3">
           <button id="studentsDownloadBtn" type="button" class="btn" style="padding:.55rem 1rem;font-size:.85rem;background:#4A6C42;color:#fff">Download designed PDF / सुंदर PDF डाउनलोड करें</button>
           <p class="hint">Includes school details and the full student list. OMR numbers are not included.</p>
@@ -281,12 +287,13 @@ select.inp:disabled{
       <div id="upiBox" class="hidden mt-6 text-center">
         <p class="lbl"><span class="upi-mark" aria-hidden="true">↗</span> Pay with UPI / यूपीआई से भुगतान करें</p>
         <div class="qr-frame"><span class="qr-corner qr-tl"></span><span class="qr-corner qr-tr"></span><span class="qr-corner qr-bl"></span><span class="qr-corner qr-br"></span><img id="qrImg" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" width="240" height="240" alt="UPI QR"></div>
-        <p class="mt-3 font-lat text-sm tracking-wider text-ink/70">
-          <span id="upiId"></span>
-          <button id="copyUpiBtn" type="button" class="ml-2 inline-flex items-center gap-1 rounded border border-gold/40 bg-sand/60 px-2 py-0.5 text-xs text-terra hover:bg-sand print-hide" title="UPI ID कॉपी करें">
-            <span aria-hidden="true">📋</span> <span id="copyUpiTxt">कॉपी करें</span>
+        <div class="mt-4 inline-flex flex-wrap items-center justify-center gap-2.5 rounded-xl border-2 border-gold/50 bg-sand/80 px-4 py-2.5 shadow-sm">
+          <span class="text-xs text-ink/65 font-medium">UPI ID:</span>
+          <span id="upiId" class="font-mono text-base sm:text-lg font-bold tracking-wider text-terra"></span>
+          <button id="copyUpiBtn" type="button" class="inline-flex items-center gap-1.5 rounded-lg bg-terra text-cream hover:bg-terra-dark px-3.5 py-1.5 text-sm font-semibold transition shadow-xs print-hide active:scale-95" title="UPI ID कॉपी करें">
+            <span aria-hidden="true">📋</span> <span id="copyUpiTxt">UPI ID कॉपी करें</span>
           </button>
-        </p>
+        </div>
         <p class="mt-4">
           <a id="upiLink" class="btn upi-pay-btn" href="#" target="_top" rel="noopener"><span aria-hidden="true">⚡</span> Pay <span aria-hidden="true">↗</span></a>
         </p>
@@ -318,13 +325,15 @@ select.inp:disabled{
           <input id="utr" class="inp font-lat tracking-wider" type="text" inputmode="numeric"
                  pattern="[0-9]{6,24}" autocomplete="off" maxlength="24" required>
           <p class="hint">UPI reference — numbers only, usually 12 digits</p>
-          <div class="mt-2.5 flex flex-wrap items-center gap-2">
-            <label for="receiptUpload" id="receiptUploadLbl" class="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-gold/40 bg-sand/80 hover:bg-sand px-2.5 py-1.5 text-xs text-terra font-medium transition shadow-2xs">
-              <span aria-hidden="true">📷</span>
-              <span id="receiptUploadTxt">रसीद अपलोड करें (ऑटो-UTR) / Upload receipt (Auto-detect)</span>
+          <!-- Prominent Screenshot Upload & Drag/Drop Box -->
+          <div id="receiptDropZone" class="mt-3 p-3.5 rounded-xl border-2 border-dashed border-gold/60 bg-sand/70 hover:bg-sand/90 transition text-center flex flex-col items-center justify-center gap-2 shadow-2xs">
+            <label for="receiptUpload" id="receiptUploadLbl" class="cursor-pointer inline-flex items-center gap-2 rounded-lg bg-terra text-cream hover:bg-terra-dark px-4 py-2 text-sm font-semibold transition shadow-xs active:scale-95">
+              <span aria-hidden="true" class="text-base">📷</span>
+              <span id="receiptUploadTxt">रसीद स्क्रीनशॉट अपलोड करें (ऑटो-UTR)</span>
             </label>
             <input id="receiptUpload" type="file" accept="image/*" class="sr-only">
-            <span id="ocrStatus" class="text-xs text-ink/75"></span>
+            <p class="text-xs text-ink/65">या स्क्रीनशॉट यहाँ ड्रॉप करें (Drag &amp; Drop) अथवा <strong>Ctrl+V</strong> दबाकर सीधे पेस्ट करें</p>
+            <div id="ocrStatus" class="text-xs text-ink/80 min-h-[1.25rem]"></div>
           </div>
         </div>
         <div>
@@ -1131,35 +1140,66 @@ function loadStudentsList(){
       return;
     }
     if(!res.data||!res.data.length){
+      hide($('studentSearchWrap'));
       listEl.textContent='कोई विद्यार्थी पंजीकृत नहीं मिला / No students found for this school.';
       return;
     }
     LAST_STUDENTS=res.data.slice();
-    var table=document.createElement('table');
-    table.className='w-full text-left';
-    var thead=document.createElement('tr');
-    thead.className='border-b border-gold/30';
-    ['अनुक्रमांक / Reg No.','विद्यार्थी / Name','पिता / Father','लिंग / Gender','कक्षा / Class'].forEach(function(h){
-      var th=document.createElement('th'); th.className='pb-1 pr-3 text-xs uppercase text-ink/55 whitespace-nowrap'; th.textContent=h; thead.appendChild(th);
-    });
-    table.appendChild(thead);
-    res.data.forEach(function(st){
-      var tr=document.createElement('tr');
-      tr.className='border-b border-gold/15 last:border-b-0';
-      [st.regNo||'—',st.name,st.father,st.gender,st.cls].forEach(function(v,idx){
-        var td=document.createElement('td'); td.className='py-1 pr-3 whitespace-nowrap'+(idx===0?' font-mono text-xs font-medium text-terra':''); td.textContent=v||''; tr.appendChild(td);
-      });
-      table.appendChild(tr);
-    });
-    listEl.appendChild(table);
+    show($('studentSearchWrap'));
+    $('studentSearchInput').value='';
+    renderStudentsTable('');
     show($('studentsDownloadWrap'));
   }).catch(function(){
     if(requestId!==STUDENTS_REQUEST_ID) return;
     LAST_STUDENTS=[];
+    hide($('studentSearchWrap'));
     hide($('studentsDownloadWrap'));
     listEl.textContent='विद्यार्थी सूची लोड नहीं हो सकी / Could not load student list.';
   });
 }
+
+function renderStudentsTable(filterText){
+  var listEl=$('studentsList');
+  var q=String(filterText||'').trim().toLowerCase();
+  var filtered=LAST_STUDENTS.filter(function(st){
+    if(!q) return true;
+    return (st.name && st.name.toLowerCase().indexOf(q)>-1) ||
+           (st.father && st.father.toLowerCase().indexOf(q)>-1) ||
+           (st.regNo && st.regNo.toLowerCase().indexOf(q)>-1) ||
+           (st.cls && String(st.cls).toLowerCase().indexOf(q)>-1);
+  });
+  var countEl=$('studentFilterCount');
+  if(countEl){
+    if(q){
+      countEl.textContent='('+LAST_STUDENTS.length+' में से '+filtered.length+' विद्यार्थी मिले)';
+    } else {
+      countEl.textContent='(कुल '+LAST_STUDENTS.length+' विद्यार्थी)';
+    }
+  }
+  listEl.innerHTML='';
+  if(!filtered.length){
+    listEl.innerHTML='<p class="py-3 text-center text-xs text-ink/65">कोई विद्यार्थी नहीं मिला / No matching students found.</p>';
+    return;
+  }
+  var table=document.createElement('table');
+  table.className='w-full text-left';
+  var thead=document.createElement('tr');
+  thead.className='border-b border-gold/30';
+  ['अनुक्रमांक / Reg No.','विद्यार्थी / Name','पिता / Father','लिंग / Gender','कक्षा / Class'].forEach(function(h){
+    var th=document.createElement('th'); th.className='pb-1 pr-3 text-xs uppercase text-ink/55 whitespace-nowrap'; th.textContent=h; thead.appendChild(th);
+  });
+  table.appendChild(thead);
+  filtered.forEach(function(st){
+    var tr=document.createElement('tr');
+    tr.className='border-b border-gold/15 last:border-b-0';
+    [st.regNo||'—',st.name,st.father,st.gender,st.cls].forEach(function(v,idx){
+      var td=document.createElement('td'); td.className='py-1 pr-3 whitespace-nowrap'+(idx===0?' font-mono text-xs font-medium text-terra':''); td.textContent=v||''; tr.appendChild(td);
+    });
+    table.appendChild(tr);
+  });
+  listEl.appendChild(table);
+}
+$('studentSearchInput').addEventListener('input',function(){ renderStudentsTable(this.value); });
 $('studentsMobileGo').addEventListener('click',loadStudentsList);
 $('studentsMobile').addEventListener('keydown',function(e){ if(e.key==='Enter') loadStudentsList(); });
 $('studentsMobile').addEventListener('input',function(){ this.classList.remove('err'); });
@@ -1377,8 +1417,7 @@ $('copyUpiBtn').addEventListener('click',function(){
     return canvas;
   }
 
-  fileInput.addEventListener('change', function(){
-    var file = this.files && this.files[0];
+  function processReceiptFile(file) {
     if (!file) return;
     if (file.type && !file.type.startsWith('image/')) {
       setStatus('कृपया एक छवि/फोटो चुनें / Please select an image file', true);
@@ -1406,7 +1445,7 @@ $('copyUpiBtn').addEventListener('click',function(){
         var text = (result && result.data && result.data.text) || '';
         var utr = extractUtr(text);
         if (lblEl) lblEl.classList.remove('opacity-50', 'pointer-events-none');
-        if (txtEl) txtEl.textContent = 'रसीद अपलोड करें (ऑटो-UTR) / Upload receipt (Auto-detect)';
+        if (txtEl) txtEl.textContent = 'रसीद स्क्रीनशॉट अपलोड करें (ऑटो-UTR)';
         if (utr) {
           utrInput.value = utr;
           utrInput.classList.remove('err');
@@ -1419,20 +1458,99 @@ $('copyUpiBtn').addEventListener('click',function(){
       }).catch(function(err) {
         console.error('OCR Error:', err);
         if (lblEl) lblEl.classList.remove('opacity-50', 'pointer-events-none');
-        if (txtEl) txtEl.textContent = 'रसीद अपलोड करें (ऑटो-UTR) / Upload receipt (Auto-detect)';
+        if (txtEl) txtEl.textContent = 'रसीद स्क्रीनशॉट अपलोड करें (ऑटो-UTR)';
         setStatus('⚠️ रसीद नहीं पढ़ी जा सकी — कृपया UTR स्वयं दर्ज करें', true);
       });
     };
     img.onerror = function() {
       URL.revokeObjectURL(objectUrl);
       if (lblEl) lblEl.classList.remove('opacity-50', 'pointer-events-none');
-      if (txtEl) txtEl.textContent = 'रसीद अपलोड करें (ऑटो-UTR) / Upload receipt (Auto-detect)';
+      if (txtEl) txtEl.textContent = 'रसीद स्क्रीनशॉट अपलोड करें (ऑटो-UTR)';
       setStatus('⚠️ छवि लोड नहीं हो सकी / Could not load image', true);
     };
     img.src = objectUrl;
-    fileInput.value = '';
+  }
+
+  fileInput.addEventListener('change', function(){
+    if (this.files && this.files[0]) processReceiptFile(this.files[0]);
+    this.value = '';
+  });
+
+  // Drag-and-drop on receipt drop zone
+  var dropZone = $('receiptDropZone');
+  if (dropZone) {
+    ['dragenter', 'dragover'].forEach(function(evt) {
+      dropZone.addEventListener(evt, function(e) {
+        e.preventDefault(); e.stopPropagation();
+        dropZone.classList.add('border-terra', 'bg-sand');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function(evt) {
+      dropZone.addEventListener(evt, function(e) {
+        e.preventDefault(); e.stopPropagation();
+        dropZone.classList.remove('border-terra', 'bg-sand');
+      });
+    });
+    dropZone.addEventListener('drop', function(e) {
+      var dt = e.dataTransfer;
+      var files = dt && dt.files;
+      if (files && files.length && files[0].type && files[0].type.startsWith('image/')) {
+        processReceiptFile(files[0]);
+      }
+    });
+  }
+
+  // Clipboard paste: Allows instant paste (Ctrl+V) of screenshot image
+  window.addEventListener('paste', function(e) {
+    var items = (e.clipboardData || window.clipboardData || {}).items;
+    if (!items) return;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type && items[i].type.indexOf('image') !== -1) {
+        var pastedFile = items[i].getAsFile();
+        if (pastedFile) {
+          processReceiptFile(pastedFile);
+          break;
+        }
+      }
+    }
   });
 })();
+
+// Smart Phone Number Paste Cleaner
+function attachPhonePasteCleaner(el) {
+  if (!el) return;
+  el.addEventListener('paste', function(e) {
+    var pasted = (e.clipboardData || window.clipboardData || {}).getData ? (e.clipboardData || window.clipboardData).getData('text') : '';
+    if (pasted) {
+      var cleaned = pasted.replace(/\s+/g, '').replace(/^[+]?(91|0)(?=[6-9][0-9]{9}$)/, '').replace(/[^0-9]/g, '');
+      if (cleaned.length === 10 && /^[6-9]/.test(cleaned)) {
+        e.preventDefault();
+        el.value = cleaned;
+        el.dispatchEvent(new Event('input'));
+      }
+    }
+  });
+}
+attachPhonePasteCleaner($('mobile'));
+attachPhonePasteCleaner($('studentsMobile'));
+
+// Unsaved changes guard: alerts before closing if payment form is filled
+window.addEventListener('beforeunload', function(e) {
+  if (isPaying) return;
+  var formVisible = $('payForm') && !$('payForm').classList.contains('hidden');
+  var hasData = formVisible && (($('payeeName') && $('payeeName').value.trim()) || ($('utr') && $('utr').value.trim()));
+  if (hasData) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+// PWA Service Worker Registration
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('sw.js').catch(function() {});
+  });
+}
 </script>
 </body>
 </html>
