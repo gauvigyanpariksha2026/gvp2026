@@ -607,23 +607,57 @@ function translitMatch(itemText, queryText){
 // fully control instead.
 function createAutocomplete(inputEl,listEl){
   var items=[];
+  var activeIndex = -1;
+
+  inputEl.setAttribute('role', 'combobox');
+  inputEl.setAttribute('aria-autocomplete', 'list');
+  inputEl.setAttribute('aria-expanded', 'false');
+  listEl.setAttribute('role', 'listbox');
+
+  function setActive(index){
+    var children = listEl.children;
+    for(var i=0; i<children.length; i++){
+      if(i === index){
+        children[i].classList.add('ac-active');
+        children[i].setAttribute('aria-selected', 'true');
+        children[i].scrollIntoView({block:'nearest'});
+      } else {
+        children[i].classList.remove('ac-active');
+        children[i].removeAttribute('aria-selected');
+      }
+    }
+    activeIndex = index;
+  }
+
+  function selectItem(v){
+    inputEl.value=v;
+    closeList();
+    inputEl.dispatchEvent(new Event('input'));
+    inputEl.dispatchEvent(new Event('change'));
+  }
+
+  function closeList(){
+    hide(listEl);
+    inputEl.setAttribute('aria-expanded', 'false');
+    activeIndex = -1;
+  }
+
   function render(){
     var q=inputEl.value.trim().toLowerCase();
     var filtered=q?items.filter(function(v){return translitMatch(v, q);}):items;
     filtered=filtered.slice(0,8);
     listEl.innerHTML='';
-    if(!filtered.length){ hide(listEl); return; }
-    filtered.forEach(function(v){
+    activeIndex = -1;
+    if(!filtered.length){ closeList(); return; }
+    filtered.forEach(function(v, idx){
       var d=document.createElement('div');
       d.className='ac-item'; d.setAttribute('role','option'); d.textContent=v;
+      d.addEventListener('mouseenter',function(){ setActive(idx); });
       // mousedown (not click) fires before the input's blur, so the value
       // is set before the dropdown gets closed by the blur handler below.
       d.addEventListener('mousedown',function(e){
         e.preventDefault();
-        inputEl.value=v;
-        hide(listEl);
-        inputEl.dispatchEvent(new Event('input'));
-        inputEl.dispatchEvent(new Event('change'));
+        selectItem(v);
       });
       listEl.appendChild(d);
     });
@@ -632,17 +666,53 @@ function createAutocomplete(inputEl,listEl){
     // would resolve against the whole wrapper.
     listEl.style.top=(inputEl.offsetTop+inputEl.offsetHeight+4)+'px';
     show(listEl);
+    inputEl.setAttribute('aria-expanded', 'true');
   }
+
   inputEl.addEventListener('input',render);
   inputEl.addEventListener('focus',render);
-  inputEl.addEventListener('blur',function(){ setTimeout(function(){ hide(listEl); },150); });
+  inputEl.addEventListener('blur',function(){ setTimeout(closeList,150); });
+
+  inputEl.addEventListener('keydown',function(e){
+    var count = listEl.children.length;
+    var isHidden = listEl.classList.contains('hidden') || !count;
+
+    if(e.key === 'ArrowDown'){
+      if(isHidden){
+        render();
+      } else {
+        e.preventDefault();
+        var next = activeIndex + 1;
+        if(next >= count) next = 0;
+        setActive(next);
+      }
+    } else if(e.key === 'ArrowUp'){
+      if(!isHidden){
+        e.preventDefault();
+        var prev = activeIndex - 1;
+        if(prev < 0) prev = count - 1;
+        setActive(prev);
+      }
+    } else if(e.key === 'Enter'){
+      if(!isHidden && activeIndex >= 0 && activeIndex < count){
+        e.preventDefault();
+        selectItem(listEl.children[activeIndex].textContent);
+      }
+    } else if(e.key === 'Escape'){
+      if(!isHidden){
+        e.preventDefault();
+        closeList();
+      }
+    }
+  });
+
   return {
     setItems:function(newItems){
       items=newItems||[];
       // An async response can arrive after the field lost focus. Do not
       // reopen its suggestion popup over whatever the user moved on to.
       if(document.activeElement===inputEl) render();
-      else hide(listEl);
+      else closeList();
     }
   };
 }
@@ -1027,32 +1097,32 @@ function loadStudentsList(){
   var requestId=++STUDENTS_REQUEST_ID;
   LAST_STUDENTS=[];
   hide($('studentsDownloadWrap'));
-  listEl.innerHTML='Loading…';
+  listEl.innerHTML='<span class="inline-flex items-center gap-2 py-1"><svg class="animate-spin h-4 w-4 text-terra" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg> <span>विद्यार्थी सूची लोड हो रही है… / Loading student list…</span></span>';
   show(listEl);
   var params={district:lookup.district,block:lookup.block,school:lookup.school,village:lookup.village,mobile:mobile};
   GVP_API.get('getSchoolStudents',params).then(function(res){
     if(requestId!==STUDENTS_REQUEST_ID) return;
     listEl.innerHTML='';
     if(!res||!res.ok){
-      listEl.textContent=(res&&res.error)||'Could not load student list.';
+      listEl.textContent=(res&&res.error)||'विद्यार्थी सूची नहीं मिल सकी / Could not load student list.';
       return;
     }
     if(!res.data||!res.data.length){
-      listEl.textContent='No students found.';
+      listEl.textContent='कोई विद्यार्थी पंजीकृत नहीं मिला / No students found for this school.';
       return;
     }
     LAST_STUDENTS=res.data.slice();
     var table=document.createElement('table');
     table.className='w-full text-left';
     var thead=document.createElement('tr');
-    ['Name','Father','Gender','Class'].forEach(function(h){
-      var th=document.createElement('th'); th.className='pb-1 pr-3 text-xs uppercase text-ink/55'; th.textContent=h; thead.appendChild(th);
+    ['अनुक्रमांक / Reg No.','विद्यार्थी / Name','पिता / Father','लिंग / Gender','कक्षा / Class'].forEach(function(h){
+      var th=document.createElement('th'); th.className='pb-1 pr-3 text-xs uppercase text-ink/55 whitespace-nowrap'; th.textContent=h; thead.appendChild(th);
     });
     table.appendChild(thead);
     res.data.forEach(function(st){
       var tr=document.createElement('tr');
-      [st.name,st.father,st.gender,st.cls].forEach(function(v){
-        var td=document.createElement('td'); td.className='py-1 pr-3'; td.textContent=v||''; tr.appendChild(td);
+      [st.regNo||'—',st.name,st.father,st.gender,st.cls].forEach(function(v,idx){
+        var td=document.createElement('td'); td.className='py-1 pr-3 whitespace-nowrap'+(idx===0?' font-mono text-xs font-medium text-terra':''); td.textContent=v||''; tr.appendChild(td);
       });
       table.appendChild(tr);
     });
@@ -1062,7 +1132,7 @@ function loadStudentsList(){
     if(requestId!==STUDENTS_REQUEST_ID) return;
     LAST_STUDENTS=[];
     hide($('studentsDownloadWrap'));
-    listEl.textContent='Could not load student list.';
+    listEl.textContent='विद्यार्थी सूची लोड नहीं हो सकी / Could not load student list.';
   });
 }
 $('studentsMobileGo').addEventListener('click',loadStudentsList);
@@ -1073,19 +1143,21 @@ $('studentsDownloadBtn').addEventListener('click',function(){
   var sf=LAST_BILL_FIELDS||schoolFields();
   if(!LAST_STUDENTS.length||!sf.district||!sf.block||!sf.school||!sf.village) return;
   var status=$('studentsDownloadStatus');
-  status.textContent='Preparing PDF... / PDF तैयार हो रही है...';
+  status.textContent='PDF तैयार हो रही है… / Preparing PDF...';
   Promise.resolve().then(function(){
     if(typeof GVP_PDF==='undefined') throw new Error('PDF generator did not load');
     return GVP_PDF.downloadStudentReport({school:sf,students:LAST_STUDENTS});
   }).then(function(){
-    status.textContent='PDF ready / PDF डाउनलोड हो गई।';
+    status.textContent='PDF डाउनलोड हो गई / PDF ready.';
   }).catch(function(err){
     console.error(err);
-    status.textContent='Could not create PDF. Please reload and try again.';
+    status.textContent='PDF नहीं बन सकी, कृपया पुनः प्रयास करें / Could not create PDF. Please reload and try again.';
   });
 });
 
+var isPaying = false;
 $('payBtn').addEventListener('click',function(){
+  if(isPaying) return;
   clean(); hide($('formErr'));
   var f=schoolFields();
   if(!LAST_BILL||LAST_BILL.amountDue<=0||LAST_BILL_KEY!==schoolKey(f)){
@@ -1109,10 +1181,12 @@ $('payBtn').addEventListener('click',function(){
     return;
   }
 
+  isPaying = true;
   $('payBtn').disabled=true; $('paySpin').classList.remove('hidden');
-  $('payTxt').textContent='Saving…';
+  $('payTxt').textContent='जमा हो रहा है… / Saving…';
 
   function fail(msg){
+    isPaying = false;
     $('payBtn').disabled=false; $('paySpin').classList.add('hidden');
     $('payTxt').textContent='I have paid / मैंने भुगतान कर दिया';
     show($('formErr'),msg);
@@ -1124,7 +1198,8 @@ $('payBtn').addEventListener('click',function(){
       students:LAST_BILL.students, amount:amount
     })
     .then(function(res){
-      if(!res||!res.ok){fail((res&&res.error)||'Could not save');return;}
+      isPaying = false;
+      if(!res||!res.ok){fail((res&&res.error)||'विवरण सुरक्षित नहीं हो सका / Could not save');return;}
       hide($('payForm')); hide($('upiBox')); hide($('needsUpiBox'));
       show($('doneMsg'),res.message||'Payment reported. Books will be sent after verification.');
       var summaryRows=[

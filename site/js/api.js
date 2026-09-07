@@ -37,9 +37,14 @@ var GVP_API = (function () {
     });
   }
 
-  function request_(url, options) {
+  function request_(url, options, retriesLeft) {
     if (typeof fetch !== 'function') {
-      return Promise.reject(new Error('This browser does not support network requests'));
+      return Promise.reject(new Error('ब्राउज़र नेटवर्क अनुरोध का समर्थन नहीं करता / This browser does not support network requests'));
+    }
+
+    var isGet = !options || !options.method || options.method === 'GET';
+    if (retriesLeft === undefined) {
+      retriesLeft = isGet ? 1 : 0;
     }
 
     var controller = typeof AbortController === 'function' ? new AbortController() : null;
@@ -56,13 +61,20 @@ var GVP_API = (function () {
 
     return fetch(url, options)
       .then(function (res) {
-        if (!res.ok) throw new Error('Server returned HTTP ' + res.status);
+        if (!res.ok) throw new Error('सर्वर त्रुटि / Server HTTP error: ' + res.status);
         return readJson_(res);
       })
       .then(cleanup_, function (err) {
         cleanup_();
+        if (isGet && retriesLeft > 0) {
+          return new Promise(function (resolve) {
+            setTimeout(resolve, 800);
+          }).then(function () {
+            return request_(url, options, retriesLeft - 1);
+          });
+        }
         if (err && err.name === 'AbortError') {
-          throw new Error('Request timed out. Please check your connection and try again.');
+          throw new Error('नेटवर्क समय समाप्त (Request timed out). कृपया अपना इंटरनेट कनेक्शन जांचें और पुनः प्रयास करें।');
         }
         throw err;
       });
@@ -73,7 +85,7 @@ var GVP_API = (function () {
       try {
         return JSON.parse(text);
       } catch (e) {
-        throw new Error('Unexpected response from server');
+        throw new Error('सर्वर से अमान्य उत्तर (Unexpected response from server). कृपया पुनः प्रयास करें।');
       }
     });
   }
