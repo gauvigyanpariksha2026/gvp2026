@@ -2409,3 +2409,37 @@ main section.form-step-card:hover,
   .rewards-card .reward-list p { align-items: flex-start; }
   .guide-grid::before { display: none; }
 }
+
+/* Custom autocomplete dropdown for School/Village fields, replacing the
+   native <datalist> popup. Android Chrome's datalist suggestion box does
+   not reserve layout space or manage its own stacking layer properly — it
+   renders as an overlay that visually collides with whatever markup sits
+   below the input (confirmed on-device: it overlapped the next field
+   entirely). This version is a normal positioned element we fully control. */
+.ac-wrap { position: relative; }
+.ac-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* top is set per-input in JS (input.offsetTop + input.offsetHeight) —
+     .ac-wrap here also contains the field's label/hint text, so a plain
+     `top: 100%` would resolve against the whole wrapper and drop the list
+     below that trailing text instead of right under the input. */
+  z-index: 40;
+  max-height: 220px;
+  overflow-y: auto;
+  background: #fffdf8;
+  border: 1px solid rgba(73, 55, 36, .18);
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(55, 37, 20, .16);
+}
+.ac-item {
+  padding: .6rem .85rem;
+  font-size: .88rem;
+  color: var(--gvp-ink, #2d241c);
+  cursor: pointer;
+  border-bottom: 1px solid rgba(73, 55, 36, .08);
+}
+.ac-item:last-child { border-bottom: 0; }
+.ac-item:hover,
+.ac-item.ac-active { background: rgba(166, 64, 37, .08); }

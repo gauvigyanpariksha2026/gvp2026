@@ -162,19 +162,19 @@ select.inp:disabled{
           </select>
           <p class="hint" id="blockHint">जिला चुनते ही ब्लॉक सूची दिखेगी</p>
         </div>
-        <div class="sm:col-span-2" id="schoolWrap">
+        <div class="sm:col-span-2 ac-wrap" id="schoolWrap">
           <label class="lbl" for="school">विद्यालय का नाम / School name <span class="req">*</span></label>
-          <input id="school" class="inp" type="text" autocomplete="off" list="schoolList"
+          <input id="school" class="inp" type="text" autocomplete="off"
                  placeholder="School name"
                  lang="en" autocapitalize="words" spellcheck="false" required>
-          <datalist id="schoolList"></datalist>
+          <div id="schoolAcList" class="ac-list hidden" role="listbox" aria-label="विद्यालय सुझाव"></div>
           <p class="hint">पंजीकरण फॉर्म में लिखा विद्यालय का नाम — English only</p>
         </div>
-        <div class="sm:col-span-2">
+        <div class="sm:col-span-2 ac-wrap">
           <label class="lbl" for="village">गाँव / शहर / Village or city <span class="req">*</span></label>
-          <input id="village" class="inp" type="text" autocomplete="address-level2" list="villageList"
+          <input id="village" class="inp" type="text" autocomplete="off"
                  placeholder="Village or City" lang="en" autocapitalize="words" spellcheck="false" required>
-          <datalist id="villageList"></datalist>
+          <div id="villageAcList" class="ac-list hidden" role="listbox" aria-label="गाँव सुझाव"></div>
           <p class="hint">पंजीकरण फॉर्म में लिखा गाँव / शहर — English only</p>
         </div>
       </div>
@@ -444,8 +444,50 @@ blockEl.addEventListener('change',function(){
   refreshVillageList();
 });
 
+// Custom dropdown replacing the native <datalist> popup — on Android
+// Chrome, datalist suggestions render as an overlay that doesn't reserve
+// layout space and visually collides with whatever markup sits below the
+// input (confirmed on-device). This is a normal positioned element we
+// fully control instead.
+function createAutocomplete(inputEl,listEl){
+  var items=[];
+  function render(){
+    var q=inputEl.value.trim().toLowerCase();
+    var filtered=q?items.filter(function(v){return v.toLowerCase().indexOf(q)>-1;}):items;
+    filtered=filtered.slice(0,8);
+    listEl.innerHTML='';
+    if(!filtered.length){ hide(listEl); return; }
+    filtered.forEach(function(v){
+      var d=document.createElement('div');
+      d.className='ac-item'; d.setAttribute('role','option'); d.textContent=v;
+      // mousedown (not click) fires before the input's blur, so the value
+      // is set before the dropdown gets closed by the blur handler below.
+      d.addEventListener('mousedown',function(e){
+        e.preventDefault();
+        inputEl.value=v;
+        hide(listEl);
+        inputEl.dispatchEvent(new Event('input'));
+        inputEl.dispatchEvent(new Event('change'));
+      });
+      listEl.appendChild(d);
+    });
+    // .ac-wrap also contains the field's label/hint text, so position the
+    // list against the input's own offset rather than a CSS top:100% that
+    // would resolve against the whole wrapper.
+    listEl.style.top=(inputEl.offsetTop+inputEl.offsetHeight+4)+'px';
+    show(listEl);
+  }
+  inputEl.addEventListener('input',render);
+  inputEl.addEventListener('focus',render);
+  inputEl.addEventListener('blur',function(){ setTimeout(function(){ hide(listEl); },150); });
+  return {
+    setItems:function(newItems){ items=newItems||[]; render(); }
+  };
+}
+var schoolAC=createAutocomplete($('school'),$('schoolAcList'));
+var villageAC=createAutocomplete($('village'),$('villageAcList'));
+
 function refreshSchoolList(){
-  var datalist=$('schoolList');
   // A slower request for the previous selection must not replace the
   // suggestions belonging to the current district/block.
   var requestKey=districtEl.value+'\u0000'+blockEl.value;
@@ -454,17 +496,7 @@ function refreshSchoolList(){
   GVP_API.get('getSchools',{district:districtEl.value,block:blockEl.value}).then(function(res){
     if(refreshSchoolList.requestKey!==requestKey) return;
     if(!res||!res.ok||!res.data) return;
-    // Build the replacement off-DOM and swap it in only once the new data is
-    // ready, instead of clearing then repopulating — on mobile, clearing
-    // first leaves the native suggestion popup empty for the whole network
-    // round trip, which shows up as the list going blank or flickering
-    // while the user is actively typing/tapping through it.
-    var frag=document.createDocumentFragment();
-    res.data.forEach(function(name){
-      var o=document.createElement('option'); o.value=name; frag.appendChild(o);
-    });
-    datalist.innerHTML='';
-    datalist.appendChild(frag);
+    schoolAC.setItems(res.data);
   }).catch(function(){ /* autocomplete is a convenience, fail silently */ });
 }
 
@@ -475,7 +507,6 @@ function refreshSchoolList(){
 // requirement from silently hiding students who were registered with a
 // slightly different spelling in an earlier or later session.
 function refreshVillageList(){
-  var datalist=$('villageList');
   var school=$('school').value.trim();
   var requestKey=districtEl.value+' '+blockEl.value+' '+school;
   refreshVillageList.requestKey=requestKey;
@@ -483,12 +514,7 @@ function refreshVillageList(){
   GVP_API.get('getVillages',{district:districtEl.value,block:blockEl.value,school:school}).then(function(res){
     if(refreshVillageList.requestKey!==requestKey) return;
     if(!res||!res.ok||!res.data) return;
-    var frag=document.createDocumentFragment();
-    res.data.forEach(function(name){
-      var o=document.createElement('option'); o.value=name; frag.appendChild(o);
-    });
-    datalist.innerHTML='';
-    datalist.appendChild(frag);
+    villageAC.setItems(res.data);
   }).catch(function(){ /* autocomplete is a convenience, fail silently */ });
 }
 
