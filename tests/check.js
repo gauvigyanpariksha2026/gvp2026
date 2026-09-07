@@ -223,6 +223,25 @@ for (const file of fs.readdirSync(path.join(root, 'site', 'js')).filter((name) =
   new Function(fs.readFileSync(path.join(root, 'site', 'js', file), 'utf8'));
 }
 
+// Verify that the OCR UTR auto-extraction logic in site/pay.html correctly parses
+// PhonePe, Google Pay, Paytm, BHIM and OCR O/0 transliteration variations.
+const payHtmlContent = fs.readFileSync(path.join(root, 'site', 'pay.html'), 'utf8');
+const fnMatch = payHtmlContent.match(/function extractUtr\(rawText\)[\s\S]*?return null;\s*\n  \}/);
+const cleanFnMatch = payHtmlContent.match(/function cleanOcrText\(text\)[\s\S]*?return text[\s\S]*?\n  \}/);
+assert.ok(fnMatch && cleanFnMatch, 'extractUtr or cleanOcrText missing in site/pay.html');
+const extractUtrTestFn = new Function(cleanFnMatch[0] + '\n' + fnMatch[0] + '; return extractUtr;')();
+
+const ocrSamples = [
+  { text: 'Paid to Gau Vigyan Pariksha\nUPI Ref No: 425210984512\nState Bank of India', expected: '425210984512' },
+  { text: 'Google Pay\nCompleted\nUPI transaction ID\n4252 1098 4512', expected: '425210984512' },
+  { text: 'PhonePe\nTransaction ID T260908123456\nUTR: 42521O984512', expected: '425210984512' },
+  { text: 'Paytm\nBank Ref: 4252-1098-4512', expected: '425210984512' },
+  { text: 'BHIM UPI Payment\nBank Ref No. 425210984512', expected: '425210984512' }
+];
+ocrSamples.forEach((sample) => {
+  assert.equal(extractUtrTestFn(sample.text), sample.expected, `OCR extraction failed for ${sample.text}`);
+});
+
 // Exercise the browser-independent PDF path with enough rows to force three
 // pages. This catches broken PDF object numbering and page-splitting changes
 // without writing a test artifact to the repository.

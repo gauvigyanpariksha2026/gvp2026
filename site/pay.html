@@ -318,6 +318,14 @@ select.inp:disabled{
           <input id="utr" class="inp font-lat tracking-wider" type="text" inputmode="numeric"
                  pattern="[0-9]{6,24}" autocomplete="off" maxlength="24" required>
           <p class="hint">UPI reference — numbers only, usually 12 digits</p>
+          <div class="mt-2.5 flex flex-wrap items-center gap-2">
+            <label for="receiptUpload" id="receiptUploadLbl" class="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-gold/40 bg-sand/80 hover:bg-sand px-2.5 py-1.5 text-xs text-terra font-medium transition shadow-2xs">
+              <span aria-hidden="true">📷</span>
+              <span id="receiptUploadTxt">रसीद अपलोड करें (ऑटो-UTR) / Upload receipt (Auto-detect)</span>
+            </label>
+            <input id="receiptUpload" type="file" accept="image/*" class="sr-only">
+            <span id="ocrStatus" class="text-xs text-ink/75"></span>
+          </div>
         </div>
         <div>
           <label class="lbl" for="mobile">भुगतानकर्ता मोबाइल / Payer mobile <span class="req">*</span></label>
@@ -1285,6 +1293,146 @@ $('copyUpiBtn').addEventListener('click',function(){
   txt.textContent='✓ कॉपी हो गया!';
   setTimeout(function(){ txt.textContent='कॉपी करें'; }, 2000);
 });
+
+// OCR Receipt auto-fill for UTR
+(function(){
+  var fileInput = $('receiptUpload');
+  var statusEl = $('ocrStatus');
+  var utrInput = $('utr');
+  var lblEl = $('receiptUploadLbl');
+  var txtEl = $('receiptUploadTxt');
+  if(!fileInput || !statusEl || !utrInput) return;
+
+  function setStatus(html, isErr, isSuccess) {
+    statusEl.innerHTML = html;
+    statusEl.className = 'text-xs ' + (isErr ? 'text-terra' : (isSuccess ? 'text-tulsi font-medium' : 'text-ink/75'));
+  }
+
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    setStatus('<span class="inline-flex items-center gap-1.5"><span class="h-3 w-3 animate-spin rounded-full border-2 border-terra/30 border-t-terra"></span> <span>OCR इंजन लोड हो रहा है… / Loading OCR engine…</span></span>');
+    return new Promise(function(resolve, reject) {
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+      s.onload = function() { resolve(window.Tesseract); };
+      s.onerror = function() { reject(new Error('OCR पुस्तकालय लोड नहीं हो सका / Could not load OCR engine')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function cleanOcrText(text) {
+    return text.replace(/([0-9])[oO]/g, function(_, a) { return a + '0'; })
+               .replace(/[oO]([0-9])/g, function(_, b) { return '0' + b; });
+  }
+
+  function extractUtr(rawText) {
+    if (!rawText) return null;
+    var cleaned = cleanOcrText(rawText);
+    var patterns = [
+      /(?:upi\s*(?:ref(?:erence)?|txn|transaction)?\s*(?:no|id)?|utr(?:\s*no)?|bank\s*ref(?:\s*no)?|txn\s*id)[\s:.\-#]+([0-9\s-]{12,18})/i,
+      /\b([0-9]{4}[\s-]?[0-9]{4}[\s-]?[0-9]{4})\b/,
+      /\b([0-9]{12})\b/
+    ];
+    for (var i = 0; i < patterns.length; i++) {
+      var m = cleaned.match(patterns[i]);
+      if (m) {
+        var digits = (m[1] || m[0]).replace(/[^0-9]/g, '');
+        if (digits.length === 12) return digits;
+      }
+    }
+    var broad = cleaned.match(/(?:upi\s*ref|utr)[\s:.\-#]+([0-9]{6,24})/i);
+    if (broad) return broad[1].replace(/[^0-9]/g, '');
+    return null;
+  }
+
+  function preprocessImage(img) {
+    var maxDim = 1200;
+    var w = img.naturalWidth || img.width;
+    var h = img.naturalHeight || img.height;
+    if (w > maxDim || h > maxDim) {
+      if (w > h) { h = Math.round(h * (maxDim / w)); w = maxDim; }
+      else { w = Math.round(w * (maxDim / h)); h = maxDim; }
+    }
+    var canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    try {
+      var imgData = ctx.getImageData(0, 0, w, h);
+      var d = imgData.data;
+      for (var i = 0; i < d.length; i += 4) {
+        var gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        gray = (gray - 128) * 1.35 + 128;
+        if (gray < 0) gray = 0;
+        if (gray > 255) gray = 255;
+        d[i] = gray;
+        d[i + 1] = gray;
+        d[i + 2] = gray;
+      }
+      ctx.putImageData(imgData, 0, 0);
+    } catch(e) {
+      /* ignore cross-origin canvas taint if any */
+    }
+    return canvas;
+  }
+
+  fileInput.addEventListener('change', function(){
+    var file = this.files && this.files[0];
+    if (!file) return;
+    if (file.type && !file.type.startsWith('image/')) {
+      setStatus('कृपया एक छवि/फोटो चुनें / Please select an image file', true);
+      return;
+    }
+
+    if (lblEl) lblEl.classList.add('opacity-50', 'pointer-events-none');
+    if (txtEl) txtEl.textContent = 'रसीद पढ़ी जा रही है… / Reading receipt…';
+    setStatus('<span class="inline-flex items-center gap-1.5"><span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-terra/30 border-t-terra"></span> <span>रसीद स्कैन हो रही है… / Scanning receipt…</span></span>');
+
+    var img = new Image();
+    var objectUrl = URL.createObjectURL(file);
+    img.onload = function() {
+      URL.revokeObjectURL(objectUrl);
+      var processedCanvas = preprocessImage(img);
+      loadTesseract().then(function(tess) {
+        return tess.recognize(processedCanvas, 'eng', {
+          logger: function(m) {
+            if (m.status === 'recognizing text' && m.progress != null) {
+              setStatus('<span class="inline-flex items-center gap-1.5"><span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-terra/30 border-t-terra"></span> <span>रसीद पढ़ी जा रही है (' + Math.round(m.progress * 100) + '%)…</span></span>');
+            }
+          }
+        });
+      }).then(function(result) {
+        var text = (result && result.data && result.data.text) || '';
+        var utr = extractUtr(text);
+        if (lblEl) lblEl.classList.remove('opacity-50', 'pointer-events-none');
+        if (txtEl) txtEl.textContent = 'रसीद अपलोड करें (ऑटो-UTR) / Upload receipt (Auto-detect)';
+        if (utr) {
+          utrInput.value = utr;
+          utrInput.classList.remove('err');
+          utrInput.classList.add('ring-2', 'ring-tulsi');
+          setTimeout(function(){ utrInput.classList.remove('ring-2', 'ring-tulsi'); }, 2000);
+          setStatus('✓ UTR स्वतः पहचाना गया: <strong>' + utr + '</strong> (कृपया पुष्टि करें)', false, true);
+        } else {
+          setStatus('⚠️ UTR स्वतः नहीं पहचान सके — कृपया रसीद देखकर स्वयं भरें', true);
+        }
+      }).catch(function(err) {
+        console.error('OCR Error:', err);
+        if (lblEl) lblEl.classList.remove('opacity-50', 'pointer-events-none');
+        if (txtEl) txtEl.textContent = 'रसीद अपलोड करें (ऑटो-UTR) / Upload receipt (Auto-detect)';
+        setStatus('⚠️ रसीद नहीं पढ़ी जा सकी — कृपया UTR स्वयं दर्ज करें', true);
+      });
+    };
+    img.onerror = function() {
+      URL.revokeObjectURL(objectUrl);
+      if (lblEl) lblEl.classList.remove('opacity-50', 'pointer-events-none');
+      if (txtEl) txtEl.textContent = 'रसीद अपलोड करें (ऑटो-UTR) / Upload receipt (Auto-detect)';
+      setStatus('⚠️ छवि लोड नहीं हो सकी / Could not load image', true);
+    };
+    img.src = objectUrl;
+    fileInput.value = '';
+  });
+})();
 </script>
 </body>
 </html>
