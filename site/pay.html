@@ -220,20 +220,25 @@ select.inp:disabled{
       </div>
 
       <div id="viewStudentsWrap" class="hidden mt-6 border-t border-gold/25 pt-5">
-        <button id="viewStudentsBtn" type="button" class="btn" style="padding:.6rem 1.1rem;font-size:.9rem;background:#4A6C42;color:#fff">View &amp; download your school's student list / अपने विद्यालय की छात्र सूची देखें व PDF डाउनलोड करें</button>
-        <div id="studentsMobileWrap" class="hidden mt-3 flex flex-wrap items-center gap-2">
-          <label class="lbl" for="studentsMobile">पंजीकृत मोबाइल नंबर / A registered student's mobile number</label>
-          <input id="studentsMobile" class="inp font-lat tracking-wider" type="text" inputmode="numeric"
-                 pattern="[6-9][0-9]{9}" maxlength="10" autocomplete="off" style="max-width:14rem">
-          <button id="studentsMobileGo" type="button" class="btn" style="padding:.45rem 1rem;font-size:.85rem">Show / दिखाएं</button>
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-base" aria-hidden="true">📋</span>
+          <h3 class="text-sm font-semibold text-ink">विद्यालय सत्यापन व छात्र सूची <span class="sec-en text-xs">Verify School &amp; View Student List</span></h3>
         </div>
-        <p class="hint">Enter the mobile number used for any one of this school's registered students to confirm you're affiliated with this school — you'll then see the full list and can download it as a PDF.</p>
-      </div>
-      <div id="studentsList" class="hidden mt-3 rounded-lg border border-gold/30 bg-cream/40 px-4 py-3 text-sm overflow-x-auto" style="max-height:300px;overflow-y:auto"></div>
-      <div id="studentsDownloadWrap" class="hidden mt-3">
-        <button id="studentsDownloadBtn" type="button" class="btn" style="padding:.55rem 1rem;font-size:.85rem;background:#4A6C42;color:#fff">Download designed PDF / सुंदर PDF डाउनलोड करें</button>
-        <p class="hint">Includes school details and the full student list. OMR numbers are not included.</p>
-        <p id="studentsDownloadStatus" class="hint" role="status" aria-live="polite"></p>
+        <p class="hint mb-3">अपने विद्यालय की पंजीकृत छात्र सूची देखने व PDF डाउनलोड करने हेतु किसी भी एक पंजीकृत विद्यार्थी का मोबाइल नंबर दर्ज करें।</p>
+        <div id="studentsMobileWrap" class="flex flex-wrap items-center gap-2">
+          <label class="lbl sr-only" for="studentsMobile">पंजीकृत मोबाइल नंबर / A registered student's mobile number</label>
+          <input id="studentsMobile" class="inp font-lat tracking-wider" type="text" inputmode="numeric"
+                 placeholder="10-digit mobile number"
+                 pattern="[6-9][0-9]{9}" maxlength="10" autocomplete="off" style="max-width:15rem">
+          <button id="studentsMobileGo" type="button" class="btn" style="padding:.55rem 1.25rem;font-size:.85rem;background:#4A6C42">सूची दिखाएं / Show →</button>
+        </div>
+        <p class="hint mt-2">Enter the mobile number of any student registered from this school.</p>
+        <div id="studentsList" class="hidden mt-3 rounded-lg border border-gold/30 bg-cream/40 px-4 py-3 text-sm overflow-x-auto" style="max-height:300px;overflow-y:auto"></div>
+        <div id="studentsDownloadWrap" class="hidden mt-3">
+          <button id="studentsDownloadBtn" type="button" class="btn" style="padding:.55rem 1rem;font-size:.85rem;background:#4A6C42;color:#fff">Download designed PDF / सुंदर PDF डाउनलोड करें</button>
+          <p class="hint">Includes school details and the full student list. OMR numbers are not included.</p>
+          <p id="studentsDownloadStatus" class="hint" role="status" aria-live="polite"></p>
+        </div>
       </div>
     </section>
 
@@ -480,13 +485,13 @@ function applyPayPrefill(){
   $('billBtn').click();
   if(!pMobile) return;
 
-  $('viewStudentsBtn').classList.remove('gvp-pulse');
+  if($('viewStudentsBtn')) $('viewStudentsBtn').classList.remove('gvp-pulse');
   var tries=0;
   var iv=setInterval(function(){
     tries++;
     if(LAST_BILL_FIELDS){
       clearInterval(iv);
-      show($('studentsMobileWrap'));
+      show($('viewStudentsWrap'));
       $('studentsMobile').value=pMobile;
       loadStudentsList();
     }else if(tries>40){
@@ -661,7 +666,7 @@ function hideBill(){
   LAST_STUDENTS=[];
   hide($('billBox')); hide($('payForm')); hide($('billErr')); hide($('done'));
   hide($('upiBox')); hide($('needsUpiBox')); hide($('zeroNote')); hide($('billPaid'));
-  hide($('viewStudentsWrap')); hide($('studentsMobileWrap')); hide($('studentsList')); hide($('studentsDownloadWrap'));
+  hide($('viewStudentsWrap')); hide($('studentsList')); hide($('studentsDownloadWrap'));
   $('studentsList').innerHTML=''; $('studentsMobile').value='';
   $('billBtn').disabled=false; $('billSpin').classList.add('hidden');
   $('billTxt').textContent='See amount / राशि देखें';
@@ -741,7 +746,7 @@ $('billBtn').addEventListener('click',function(){
       LAST_BILL_LOOKUP_SCHOOL=res.lookupSchool||f.school;
       LAST_BILL_FIELDS={district:f.district,block:f.block,school:LAST_BILL_LOOKUP_SCHOOL,village:f.village};
       LAST_STUDENTS=[];
-      hide($('studentsMobileWrap')); hide($('studentsList')); hide($('studentsDownloadWrap')); $('studentsList').innerHTML=''; $('studentsMobile').value='';
+      hide($('studentsList')); hide($('studentsDownloadWrap')); $('studentsList').innerHTML=''; $('studentsMobile').value='';
       if(res.students>0){ show($('viewStudentsWrap')); } else { hide($('viewStudentsWrap')); }
       show($('billBox'));
       setPayFlow(2);
@@ -822,27 +827,19 @@ $('billBtn').addEventListener('click',function(){
 
 var STUDENTS_REQUEST_ID=0;
 
-// The list only unlocks after a mobile number matching one of the school's
-// own registered students is entered (see getSchoolStudents in Code.gs) —
-// this button just reveals that field, it does not fetch anything itself.
-$('viewStudentsBtn').addEventListener('click',function(){
-  var wrap=$('studentsMobileWrap');
-  if(!wrap.classList.contains('hidden')){ hide(wrap); hide($('studentsList')); hide($('studentsDownloadWrap')); LAST_STUDENTS=[]; $('studentsList').innerHTML=''; return; }
-  show(wrap);
-  $('studentsMobile').focus();
-});
-
-// Quick-access banner right after the header (see the "having trouble with
-// payment" note) — jumps straight to the school-selection card and opens
-// the student-list/mobile-number field without requiring a bill lookup.
+// Quick-access banner right after the header:
+// Directly reveals the registered student mobile number input and focuses it
+// without scrolling or jumping away to payment options.
 $('quickStudentsBtn').addEventListener('click',function(){
   this.classList.remove('gvp-pulse');
   show($('viewStudentsWrap'));
-  show($('studentsMobileWrap'));
-  var f=schoolFields();
-  var firstEmpty=!f.district?$('district'):!f.block?blockEl:!f.school?$('school'):!f.village?$('village'):$('studentsMobile');
-  document.querySelector('.payment-step-school').scrollIntoView({behavior:'smooth',block:'start'});
-  setTimeout(function(){ firstEmpty.focus(); },400);
+  $('viewStudentsWrap').scrollIntoView({behavior:'smooth',block:'center'});
+  setTimeout(function(){
+    var m=$('studentsMobile');
+    m.focus();
+    m.classList.add('ring-2','ring-gold');
+    setTimeout(function(){ m.classList.remove('ring-2','ring-gold'); }, 1200);
+  },350);
 });
 
 function loadStudentsList(){
@@ -850,6 +847,7 @@ function loadStudentsList(){
   var mobile=$('studentsMobile').value.trim();
   if(!/^[6-9][0-9]{9}$/.test(mobile)){
     bad($('studentsMobile'));
+    shakeField($('studentsMobile'));
     listEl.textContent='मोबाइल नंबर सही नहीं है / Enter a valid 10-digit mobile number';
     show(listEl);
     return;
@@ -860,8 +858,13 @@ function loadStudentsList(){
   // payment trouble doesn't block getting their own school's data.
   var lookup=LAST_BILL_FIELDS||schoolFields();
   if(!lookup.district||!lookup.block||!lookup.school||!lookup.village){
-    listEl.textContent='पहले जिला, ब्लॉक, विद्यालय व गाँव/शहर भरें / Fill in district, block, school and village first';
+    var missing=!lookup.district?$('district'):!lookup.block?blockEl:!lookup.school?$('school'):$('village');
+    bad(missing);
+    shakeField(missing);
+    listEl.innerHTML='छात्र सूची देखने के लिए कृपया ऊपर <strong>विद्यालय का विवरण (जिला, ब्लॉक, विद्यालय, गाँव)</strong> भी भरें।<br><span class="sec-en text-xs">Please fill district, block, school &amp; village above to identify your school.</span>';
     show(listEl);
+    missing.scrollIntoView({behavior:'smooth',block:'center'});
+    setTimeout(function(){ missing.focus(); }, 400);
     return;
   }
   var requestId=++STUDENTS_REQUEST_ID;
