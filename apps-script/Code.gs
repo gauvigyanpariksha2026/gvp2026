@@ -1121,3 +1121,98 @@ function rebuildSchoolDues() {
   dues.setFrozenRows(1);
   return { ok: true, schools: out.length - 1 };
 }
+
+// ---------------------------------------------------------------------
+// ONE-TIME MAINTENANCE — run manually from the Apps Script editor
+// (select fixSchoolNameSplits_ from the function dropdown, click Run).
+// Not called by any API action; safe to delete after running once.
+//
+// Fixes registrations for a real school that got split across different
+// spellings/formats of the School column itself (typos, legacy comma
+// format, "PM SHRI" renaming inconsistency, a stray truncated/garbled
+// entry) — as opposed to Village drift, which countSchoolStudents_ and
+// getVillages already tolerate at query time. Each entry below was
+// verified by hand against the exported sheet data: same real village,
+// same admin level (senior-secondary vs primary etc. not mixed), and
+// checked for cross-block collisions before being scoped to a specific
+// district+block so it can't touch a same-named school elsewhere.
+//
+// Every match is EXACT (district + block + full School cell text, and
+// for the Parda Saroda case also Village) — nothing here does a partial
+// or fuzzy replace, so a row that doesn't match one of these entries
+// exactly is left untouched.
+function fixSchoolNameSplits_() {
+  var sheet = getRegistrationSheet_(getSpreadsheet_());
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    Logger.log('No data rows.');
+    return;
+  }
+
+  // { district, block, school: exact current School text to match,
+  //   village: optional — only set when the School text alone isn't
+  //   unique enough within that district+block, e.g. the Parda Saroda
+  //   case shares its bare School text with two other real schools
+  //   (Vamasa, Saroda) in the same block, so Village disambiguates it.
+  //   replacement: new School text to write. }
+  var fixes = [
+    { district: 'BUNDI', block: 'K.PATAN', school: 'GSSS GRAMPURA GRAMIN LAKHERI, LAKHERI', replacement: 'GSSS GARAMPURA GRAMEEN LAKHERI' },
+    { district: 'BUNDI', block: 'K.PATAN', school: 'GSSS GRAMPURA GRAMIN LAKHERI , LAKHERI', replacement: 'GSSS GARAMPURA GRAMEEN LAKHERI' },
+    { district: 'BUNDI', block: 'K.PATAN', school: 'GSSS GRAMPURA GRAMEEN LAKHERI, LAKHERI', replacement: 'GSSS GARAMPURA GRAMEEN LAKHERI' },
+    { district: 'BUNDI', block: 'K.PATAN', school: 'GSSS GARAMPURA GRAMEEN LAKHERI ,LAKHERI', replacement: 'GSSS GARAMPURA GRAMEEN LAKHERI' },
+    { district: 'BUNDI', block: 'K.PATAN', school: 'GSSS GARAMPURA GRAMEEN LAKHERIL', replacement: 'GSSS GARAMPURA GRAMEEN LAKHERI' },
+    { district: 'BUNDI', block: 'K.PATAN', school: 'GSSS GRAMPURA GRAMEEN LAKHERI', replacement: 'GSSS GARAMPURA GRAMEEN LAKHERI' },
+    { district: 'BUNDI', block: 'K.PATAN', school: 'GSSS GRAMPURA GRAMIN LAKHERI', replacement: 'GSSS GARAMPURA GRAMEEN LAKHERI' },
+
+    { district: 'DUNGARPUR', block: 'ASPUR', school: 'GOVERMENT SENIOR SECONDARY SCHOOL BADOUDA', replacement: 'GOVT SENIOR SECONDARY SCHOOL' },
+    { district: 'DUNGARPUR', block: 'ASPUR', school: 'KATISOUR,ASPUR', replacement: 'GSSS KATISOUR,ASPUR' },
+
+    { district: 'BHILWARA', block: 'RAIPUR', school: "GSSS-THALA'VILLAGAE-THALA , RAIPUR", replacement: 'GSSS THALA' },
+    { district: 'BHILWARA', block: 'RAIPUR', school: 'G.S.S.S THALA ,RAIPUR', replacement: 'GSSS THALA' },
+
+    { district: 'BARAN', block: 'ANTA', school: 'MGGS, SORKHAND KALAN', replacement: 'MGGS SORKHAND KALAN' },
+
+    { district: 'CHITTORGARH', block: 'NIMBAHERA', school: 'PM SHRI G S S S', replacement: 'PM SHRI GSS SCHOOL' },
+    { district: 'CHITTORGARH', block: 'NIMBAHERA', school: 'P M SHRI G S S SCHOOL', replacement: 'PM SHRI GSS SCHOOL' },
+    { district: 'CHITTORGARH', block: 'NIMBAHERA', school: 'P M SHRI GSS, SCHOOL', replacement: 'PM SHRI GSS SCHOOL' },
+    { district: 'CHITTORGARH', block: 'NIMBAHERA', school: 'PMSHRI GSS,SCHOOL', replacement: 'PM SHRI GSS SCHOOL' },
+    { district: 'CHITTORGARH', block: 'NIMBAHERA', school: 'PM SHRI GSS, SCHOOL', replacement: 'PM SHRI GSS SCHOOL' },
+    { district: 'CHITTORGARH', block: 'NIMBAHERA', school: 'GOVERNMENT UPPER PRIMARY SCHOOL MURLIYA, MURLIYA', replacement: 'GOVT UPPER PRIMARY SCHOOL' },
+
+    { district: 'DUNGARPUR', block: 'SAGWARA', school: 'GOVT SENIOR SECONDARY SCHOOL VAMASA,CANADA/VAMASA', replacement: 'GOVT SENIOR SECONDARY SCHOOL' },
+    { district: 'DUNGARPUR', block: 'SAGWARA', school: 'GOV', replacement: 'GOVT SENIOR SECONDARY SCHOOL' },
+    { district: 'DUNGARPUR', block: 'SAGWARA', school: 'GOVT SENIOR SECONDARY SCHOOL', village: 'PARDA SARODA', replacement: 'GOVT SR SEC SCHOOL PARDA SARODA' }
+  ];
+
+  var values = sheet.getRange(2, 7, lastRow - 1, 4).getValues(); // G:J = District, Block, School, Village
+  var counts = {};
+  var writes = []; // {row, value}
+
+  for (var i = 0; i < values.length; i++) {
+    var district = String(values[i][0] || '').trim().toUpperCase();
+    var block = String(values[i][1] || '').trim().toUpperCase();
+    var school = String(values[i][2] || '').trim();
+    var village = String(values[i][3] || '').trim().toUpperCase();
+    var sheetRow = i + 2;
+
+    for (var f = 0; f < fixes.length; f++) {
+      var fx = fixes[f];
+      if (district !== fx.district || block !== fx.block || school !== fx.school) continue;
+      if (fx.village && village !== fx.village) continue;
+      writes.push({ row: sheetRow, value: fx.replacement });
+      var logKey = fx.district + '/' + fx.block + ': "' + fx.school + '"' + (fx.village ? ' [village=' + fx.village + ']' : '') + ' -> "' + fx.replacement + '"';
+      counts[logKey] = (counts[logKey] || 0) + 1;
+      break;
+    }
+  }
+
+  Logger.log('Rows matched per fix:');
+  Object.keys(counts).forEach(function (k) { Logger.log('  ' + counts[k] + '  ' + k); });
+  Logger.log('Total rows to change: ' + writes.length);
+
+  for (var w = 0; w < writes.length; w++) {
+    sheet.getRange(writes[w].row, 9).setValue(writes[w].value); // column I = School
+  }
+
+  Logger.log('Done — School column updated for ' + writes.length + ' rows.');
+}
