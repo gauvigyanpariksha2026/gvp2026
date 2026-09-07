@@ -316,6 +316,10 @@ select.inp:disabled{
       <button id="printConfirmBtn" type="button" class="btn">पुष्टि सहेजें / Save confirmation</button>
     </p>
     <p class="mt-2 text-xs text-ink/50 done-item">इसे प्रिंट करें या PDF के रूप में सहेजें / Print it or save as PDF</p>
+    <p class="mt-4 done-item">
+      <a id="goToPaymentBtn" class="btn" style="text-decoration:none;display:inline-flex" href="pay.html">विद्यालय भुगतान व पंजीकरण PDF देखें / Go to payment &amp; view registration PDF</a>
+    </p>
+    <p class="mt-2 text-xs text-ink/50 done-item">अपने विद्यालय की पूरी पंजीकृत सूची की PDF वहाँ डाउनलोड करें / Download your school's full registered-student PDF there</p>
   </div>
 
   <!-- ===== EXAM DETAILS (from official notice) ===== -->
@@ -828,7 +832,13 @@ function createAutocomplete(inputEl,listEl){
   inputEl.addEventListener('focus',render);
   inputEl.addEventListener('blur',function(){ setTimeout(function(){ hide(listEl); },150); });
   return {
-    setItems:function(newItems){ items=newItems||[]; render(); }
+    setItems:function(newItems){
+      items=newItems||[];
+      // An async response can arrive after the field lost focus. Do not
+      // reopen its suggestion popup over whatever the user moved on to.
+      if(document.activeElement===inputEl) render();
+      else hide(listEl);
+    }
   };
 }
 var schoolAC=createAutocomplete($('school'),$('schoolAcList'));
@@ -839,6 +849,8 @@ function refreshSchoolList(){
   // suggestions belonging to the current district/block.
   var requestKey=districtEl.value+'\u0000'+blockEl.value;
   refreshSchoolList.requestKey=requestKey;
+  // Never leave suggestions from the previously selected location visible.
+  schoolAC.setItems([]);
   if(!apiReady() || !districtEl.value || !blockEl.value) return;
   GVP_API.get('getSchools',{district:districtEl.value,block:blockEl.value}).then(function(res){
     if(refreshSchoolList.requestKey!==requestKey) return;
@@ -855,6 +867,7 @@ function refreshSchoolList(){
 function refreshVillageList(){
   var school=$('school').value.trim();
   var requestKey=districtEl.value+' '+blockEl.value+' '+school;
+  if(refreshVillageList.requestKey!==requestKey) villageAC.setItems([]);
   refreshVillageList.requestKey=requestKey;
   if(!apiReady() || !districtEl.value || !blockEl.value || !school) return;
   GVP_API.get('getVillages',{district:districtEl.value,block:blockEl.value,school:school}).then(function(res){
@@ -976,6 +989,11 @@ $('submitBtn').addEventListener('click',function(){
       var done=$('done'); done.classList.remove('hidden');
       $('omrNo').textContent=res.omrNo || '';
       $('regNo').textContent=res.regNo;
+      var payParams=new URLSearchParams({
+        district:data.district, block:data.block, school:data.school,
+        village:data.village, mobile:data.mobile
+      });
+      $('goToPaymentBtn').href='pay.html?'+payParams.toString();
       var summaryRows=[
         ['नाम / Name',data.name],
         ['पिता / Father',data.father],

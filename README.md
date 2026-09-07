@@ -64,10 +64,23 @@ GitHub Pages assigns.
 
 ## 4. Test end-to-end
 
+Run the local regression checks first (Node.js 18 or newer):
+
+```sh
+node tests/check.js
+```
+
+This validates the JavaScript syntax, local HTML asset references, and both
+the current and legacy Google Sheet registration layouts. Then test the live
+deployment:
+
 - Open the site, select a district/block, submit a test registration, and
   confirm a new row appears in your Google Sheet's registration tab.
 - Open `pay.html`, select the same district/block/school, click **See
   amount**, and confirm it shows the right student count and fee.
+- Open **View registered students**, verify with a mobile number belonging to
+  that school, and download the designed PDF participation report for school
+  records. The report intentionally omits OMR numbers.
 - Submit a test payment report (a fake UTR is fine while testing) and
   confirm a row appears in the **Payments** sheet.
 

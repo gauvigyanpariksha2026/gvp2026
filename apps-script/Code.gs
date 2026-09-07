@@ -173,6 +173,16 @@ function getBlocks(district) {
   return DISTRICT_BLOCKS[district] || [];
 }
 
+function isKnownDistrict_(value) {
+  var candidate = String(value || '').trim();
+  if (!candidate) return false;
+  var districts = Object.keys(DISTRICT_BLOCKS);
+  for (var i = 0; i < districts.length; i++) {
+    if (locMatch_(candidate, districts[i])) return true;
+  }
+  return false;
+}
+
 function compactKey_(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
@@ -416,16 +426,26 @@ function duplicateRegistrationExists_(sheet, name, father, mobile) {
   var fatherKey = compactKey_(father);
   var mobileKey = String(mobile || '').trim();
 
-  // Searching the Mobile column directly avoids downloading C:K for every
-  // registration. The old approach became progressively slower as the list
-  // of students grew, even though nearly every mobile number is unique.
-  var mobileRange = sheet.getRange(2, 11, last - 1, 1);
-  var matches = mobileRange.createTextFinder(mobileKey)
-    .matchCase(false)
-    .matchEntireCell(true)
-    .findAll();
+  // Search both the current Mobile column (K) and the legacy one (O). The
+  // header migration deliberately left existing rows in their old layout,
+  // so checking K alone lets a legacy student be registered twice. A new
+  // current-only sheet can be only 13 columns wide, however, so do not ask
+  // Sheets for legacy column O unless that column actually exists.
+  var matches = [];
+  var mobileColumns = [11];
+  if (sheet.getMaxColumns() >= 15) mobileColumns.push(15);
+  mobileColumns.forEach(function (column) {
+    matches = matches.concat(sheet.getRange(2, column, last - 1, 1)
+      .createTextFinder(mobileKey)
+      .matchCase(false)
+      .matchEntireCell(true)
+      .findAll());
+  });
+  var seenRows = {};
   for (var i = 0; i < matches.length; i++) {
     var row = matches[i].getRow();
+    if (seenRows[row]) continue;
+    seenRows[row] = true;
     var identity = sheet.getRange(row, 3, 1, 2).getValues()[0];
     if (compactKey_(identity[0]) === nameKey && compactKey_(identity[1]) === fatherKey) return true;
   }
@@ -541,7 +561,16 @@ function backfillOmrNumbers() {
   ensureRegistrationHeaders_(sheet);
   var last = sheet.getLastRow();
   if (last < 2) return;
-  var regs = sheet.getRange(2, 1, last - 1, 1).getValues();
+  var rowCount = last - 1;
+  var maxColumns = sheet.getMaxColumns();
+  var regs = sheet.getRange(2, 1, rowCount, 1).getValues();
+  var dataWidth = Math.min(13, maxColumns - 2);
+  var rowData = sheet.getRange(2, 3, rowCount, dataWidth).getValues();
+  rowData.forEach(function (row) { while (row.length < 13) row.push(''); });
+  var currentOmr = sheet.getRange(2, 12, rowCount, 1).getValues(); // L
+  var legacyOmr = maxColumns >= 18
+    ? sheet.getRange(2, 18, rowCount, 1).getValues()
+    : null;
   var parsed = regs.map(function (row) {
     var m = String(row[0] || '').match(/(\d+)$/);
     return m ? parseInt(m[1], 10) : null;
@@ -551,16 +580,19 @@ function backfillOmrNumbers() {
     if (parsed[i] !== null && parsed[i] > maxSerial) maxSerial = parsed[i];
   }
   var nextUnparsed = maxSerial;
-  var out = [];
   for (var j = 0; j < parsed.length; j++) {
     var n = parsed[j];
     if (n === null) {
       nextUnparsed += 1;
       n = nextUnparsed;
     }
-    out.push([omrFromSerial_(n)]);
+    if (legacyOmr && registrationRow_(rowData[j]).legacy) legacyOmr[j][0] = omrFromSerial_(n);
+    else currentOmr[j][0] = omrFromSerial_(n);
   }
-  sheet.getRange(2, 12, out.length, 1).setValues(out);
+  // Preserve the other layout's cells: L is Village on a legacy row, while
+  // R may contain old OMR values and must not be cleared for current rows.
+  sheet.getRange(2, 12, rowCount, 1).setValues(currentOmr);
+  if (legacyOmr) sheet.getRange(2, 18, rowCount, 1).setValues(legacyOmr);
 }
 
 function ensurePaymentsSheet_(ss) {
@@ -593,14 +625,33 @@ function ensurePaymentsSheet_(ss) {
 // every school's student count.
 function regRowLocation_(g, h, i, j, k, l) {
   var district = String(g || '').trim();
-  if (district) {
+  var legacyDistrict = String(i || '').trim();
+  // A legacy DOB can occupy G, so "G is non-empty" is not enough to
+  // identify the current layout. Prefer whichever candidate is a district
+  // from the configured location list.
+  if (isKnownDistrict_(district) || !isKnownDistrict_(legacyDistrict)) {
     return { district: district, block: String(h || '').trim(), school: String(i || '').trim(), village: String(j || '').trim() };
   }
-  var legacyDistrict = String(i || '').trim();
-  if (legacyDistrict) {
-    return { district: legacyDistrict, block: String(j || '').trim(), school: String(k || '').trim(), village: String(l || '').trim() };
-  }
-  return { district: '', block: '', school: '', village: '' };
+  return { district: legacyDistrict, block: String(j || '').trim(), school: String(k || '').trim(), village: String(l || '').trim() };
+}
+
+// Parse C:O from either registration layout. Current rows store
+// Gender/Class/District/Block/School/Village/Mobile at E:K; legacy rows use
+// F/H:I:J:K:L/O because the removed fields still occupy their old columns.
+function registrationRow_(values) {
+  var legacy = !isKnownDistrict_(values[4]) && isKnownDistrict_(values[6]);
+  return {
+    legacy: legacy,
+    name: String(values[0] || '').trim(),
+    father: String(values[1] || '').trim(),
+    gender: String(values[legacy ? 3 : 2] || '').trim(),
+    cls: String(values[legacy ? 5 : 3] || '').trim(),
+    district: String(values[legacy ? 6 : 4] || '').trim(),
+    block: String(values[legacy ? 7 : 5] || '').trim(),
+    school: String(values[legacy ? 8 : 6] || '').trim(),
+    village: String(values[legacy ? 9 : 7] || '').trim(),
+    mobile: String(values[legacy ? 12 : 8] || '').trim()
+  };
 }
 
 function countSchoolStudents_(district, block, school, village, sheet) {
@@ -640,7 +691,10 @@ function getSchoolStudents(district, block, school, village, mobile) {
     village = String(village || '').trim();
     mobile = String(mobile || '').trim();
     if (!school) return { ok: false, error: 'School name is required / विद्यालय का नाम लिखें' };
-    if (!/^[6-9][0-9]{9}$/.test(mobile)) {
+    if (!village) return { ok: false, error: 'Village or city is required / गाँव या शहर लिखें' };
+    var locErr = validLocation_(district, block);
+    if (locErr) return { ok: false, error: locErr };
+    if (!/^[6-9][0-9]{9}$/.test(mobile) || isFakeMobile_(mobile)) {
       return { ok: false, error: 'Enter a registered mobile number to view students / छात्र सूची देखने हेतु पंजीकृत मोबाइल नंबर लिखें' };
     }
 
@@ -648,30 +702,29 @@ function getSchoolStudents(district, block, school, village, mobile) {
     var lastRow = sheet.getLastRow();
     if (lastRow < 2) return { ok: true, data: [] };
 
-    // Columns 3-11: Name, Father, Gender, Class, District, Block, School, Village, Mobile.
-    // Unlike countSchoolStudents_/getSchools/getVillages, this does not fall
-    // back to the pre-schema-shrink column layout (see regRowLocation_):
-    // that migration also moved Gender, Class and Mobile, so a legacy row
-    // read at these positions would show wrong values, not just miss a
-    // match. A school with registrations from before that migration may see
-    // an incomplete or unmatched student list here even once its bill total
-    // is correct.
-    var values = sheet.getRange(2, 3, lastRow - 1, 9).getValues();
+    // A:O includes the registration number plus every current/legacy field
+    // needed for the authorized participant list. OMR is intentionally not
+    // returned because schools do not need it for this report.
+    var width = Math.min(15, sheet.getMaxColumns());
+    var values = sheet.getRange(2, 1, lastRow - 1, width).getValues();
     var matched = [];
     var mobileFound = false;
     for (var i = 0; i < values.length; i++) {
-      var sheetSchool = String(values[i][6] || '').trim();
-      if (!sheetSchool) continue;
-      if (district && !locMatch_(values[i][4], district)) continue;
-      if (block && !locMatch_(values[i][5], block)) continue;
-      if (!schoolMatch_(schoolDisplayName_(sheetSchool, values[i][7]), school)) continue;
-      if (village && !locMatch_(values[i][7], village)) continue;
-      if (String(values[i][8] || '').trim() === mobile) mobileFound = true;
+      var raw = values[i];
+      while (raw.length < 15) raw.push('');
+      var row = registrationRow_(raw.slice(2, 15));
+      if (!row.school) continue;
+      if (district && !locMatch_(row.district, district)) continue;
+      if (block && !locMatch_(row.block, block)) continue;
+      if (!schoolMatch_(schoolDisplayName_(row.school, row.village), school)) continue;
+      if (village && !locMatch_(row.village, village)) continue;
+      if (row.mobile === mobile) mobileFound = true;
       matched.push({
-        name: String(values[i][0] || '').trim(),
-        father: String(values[i][1] || '').trim(),
-        gender: String(values[i][2] || '').trim(),
-        cls: String(values[i][3] || '').trim()
+        regNo: String(raw[0] || '').trim(),
+        name: row.name,
+        father: row.father,
+        gender: row.gender,
+        cls: row.cls
       });
     }
     if (!mobileFound) {
@@ -1073,12 +1126,15 @@ function rebuildSchoolDues() {
   }
 
   if (reg.getLastRow() >= 2) {
-    var rows = reg.getRange(2, 7, reg.getLastRow() - 1, 4).getValues();
+    // G:L lets the same row-layout detector used by billing include legacy
+    // registrations in the administrative dues rebuild as well.
+    var rows = reg.getRange(2, 7, reg.getLastRow() - 1, 6).getValues();
     for (var i = 0; i < rows.length; i++) {
-      var v = String(rows[i][3] || '').trim();
-      var s = schoolDisplayName_(rows[i][2], v);
+      var loc = regRowLocation_(rows[i][0], rows[i][1], rows[i][2], rows[i][3], rows[i][4], rows[i][5]);
+      var v = loc.village;
+      var s = schoolDisplayName_(loc.school, v);
       if (!s) continue;
-      ensure(rows[i][0], rows[i][1], s, v).students++;
+      ensure(loc.district, loc.block, s, v).students++;
     }
   }
 
