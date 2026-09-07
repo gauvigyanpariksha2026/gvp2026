@@ -13,7 +13,7 @@
  * into API_URL at the top of site/js/api.js.
  *
  * Read actions  (GET  ?action=NAME&...params)
- *   getDistricts, getLocations, getBlocks, getSchoolBill, getSchools
+ *   getDistricts, getLocations, getBlocks, getSchoolBill, getSchools, getVillages, getSchoolStudents
  * Write actions (POST body: {"action":"NAME","payload":{...}})
  *   submitRegistration, reportSchoolPayment
  *
@@ -126,6 +126,10 @@ function dispatchApi_(action, p) {
         return getSchoolBill(p.district, p.block, p.school, p.village);
       case 'getSchools':
         return { ok: true, data: getSchools(p.district, p.block) };
+      case 'getVillages':
+        return { ok: true, data: getVillages(p.district, p.block, p.school) };
+      case 'getSchoolStudents':
+        return getSchoolStudents(p.district, p.block, p.school, p.village, p.mobile);
       case 'reportSchoolPayment':
         return reportSchoolPayment(p);
       default:
@@ -189,6 +193,40 @@ function locMatch_(sheetVal, selected) {
   var slash = s.lastIndexOf('/');
   if (slash > -1 && s.substring(slash + 1).trim().toLowerCase() === sell) return true;
   return false;
+}
+
+function levenshtein_(a, b) {
+  var m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  var prev = [];
+  for (var j = 0; j <= n; j++) prev[j] = j;
+  for (var i = 1; i <= m; i++) {
+    var cur = [i];
+    for (var k = 1; k <= n; k++) {
+      var cost = a.charAt(i - 1) === b.charAt(k - 1) ? 0 : 1;
+      cur[k] = Math.min(prev[k] + 1, cur[k - 1] + 1, prev[k - 1] + cost);
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
+// True only when two village texts plausibly name the same real place —
+// exact/compacted match, one containing the other (a dropped "Village"
+// prefix, or a trailing block/district name), or a couple of characters of
+// typo drift. Many schools in this data share a generic, place-free name
+// (just "GSSS" or "Govt Sr Sec School"), so Village is the *only* thing
+// that keeps two different real schools apart — a "did you mean" suggestion
+// must not offer a textually unrelated village from a same-named but
+// different school, or it would steer someone into paying that school's
+// bill by mistake. See computeSchoolBill_'s villagesOnFile.
+function villageSimilar_(a, b) {
+  var ak = compactKey_(a), bk = compactKey_(b);
+  if (!ak || !bk) return false;
+  if (ak === bk) return true;
+  if (ak.indexOf(bk) > -1 || bk.indexOf(ak) > -1) return true;
+  return levenshtein_(ak, bk) <= 2;
 }
 
 // Whole-name abbreviations, expanded to the same words schoolNormalizeKey_
@@ -263,6 +301,27 @@ function schoolDisplayName_(school, village) {
     return name.substring(0, comma).trim();
   }
   return name;
+}
+
+// Catches the placeholder numbers people type when they don't want to give
+// a real one — all one digit repeated, or a straight ascending/descending
+// run of digits (wrapping past 9→0 or 0→9, so 6789012345 counts too, not
+// just runs starting at 0 or 1). Live testing found "9999999999" sitting in
+// a real school's Mobile column and matching getSchoolStudents' registered-
+// mobile privacy gate — that gate is only as strong as the numbers actually
+// on file, so this stops new junk values at the source. It cannot fix
+// already-registered fake numbers.
+function isFakeMobile_(mobile) {
+  mobile = String(mobile || '').trim();
+  if (!/^[0-9]{10}$/.test(mobile)) return false;
+  if (/^(\d)\1{9}$/.test(mobile)) return true;
+  var ascending = true, descending = true;
+  for (var i = 1; i < mobile.length; i++) {
+    var prev = Number(mobile.charAt(i - 1)), cur = Number(mobile.charAt(i));
+    if ((cur - prev + 10) % 10 !== 1) ascending = false;
+    if ((prev - cur + 10) % 10 !== 1) descending = false;
+  }
+  return ascending || descending;
 }
 
 function validLocation_(district, block) {
@@ -392,6 +451,9 @@ function submitRegistration(data) {
     if (!/^[6-9][0-9]{9}$/.test(String(data.mobile || ''))) {
       return { ok: false, error: 'मोबाइल नंबर सही नहीं है' };
     }
+    if (isFakeMobile_(data.mobile)) {
+      return { ok: false, error: 'असली मोबाइल नंबर लिखें, प्लेसहोल्डर नहीं / Enter a real mobile number, not a placeholder' };
+    }
     if (!/^(Male|Female|Other)$/.test(String(data.gender || ''))) {
       return { ok: false, error: 'लिंग पुरुष, महिला या अन्य चुनें / Select Male, Female or Other' };
     }
@@ -520,24 +582,106 @@ function ensurePaymentsSheet_(ss) {
   return sheet;
 }
 
+// District/Block/School/Village for one registration row, given columns
+// G:L (6 cells: current District, Block, School, Village, then the two
+// columns that held District/Block before the Sep 2026 schema shrink
+// (877e255) moved those fields two columns left. Existing rows written
+// before that migration were never rewritten, so their real location data
+// still sits at the old I:L position while the code's normal G:J read finds
+// only blank cells (DOB/PIN, in the old layout) there. Falling back to I:L
+// when G is blank keeps those older rows from silently vanishing out of
+// every school's student count.
+function regRowLocation_(g, h, i, j, k, l) {
+  var district = String(g || '').trim();
+  if (district) {
+    return { district: district, block: String(h || '').trim(), school: String(i || '').trim(), village: String(j || '').trim() };
+  }
+  var legacyDistrict = String(i || '').trim();
+  if (legacyDistrict) {
+    return { district: legacyDistrict, block: String(j || '').trim(), school: String(k || '').trim(), village: String(l || '').trim() };
+  }
+  return { district: '', block: '', school: '', village: '' };
+}
+
 function countSchoolStudents_(district, block, school, village, sheet) {
   sheet = sheet || getRegistrationSheet_(getSpreadsheet_());
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return 0;
 
-  // G:J includes Village for legacy "School, Village" compatibility.
-  var values = sheet.getRange(2, 7, lastRow - 1, 4).getValues();
+  // G:L so regRowLocation_ can fall back to the pre-migration column
+  // position when a row's current-schema District cell is blank.
+  var values = sheet.getRange(2, 7, lastRow - 1, 6).getValues();
   var n = 0;
   for (var i = 0; i < values.length; i++) {
-    var sheetSchool = String(values[i][2] || '').trim();
-    if (!sheetSchool) continue;
-    if (district && !locMatch_(values[i][0], district)) continue;
-    if (block && !locMatch_(values[i][1], block)) continue;
-    if (!schoolMatch_(schoolDisplayName_(sheetSchool, values[i][3]), school)) continue;
-    if (village && !locMatch_(values[i][3], village)) continue;
+    var loc = regRowLocation_(values[i][0], values[i][1], values[i][2], values[i][3], values[i][4], values[i][5]);
+    if (!loc.school) continue;
+    if (district && !locMatch_(loc.district, district)) continue;
+    if (block && !locMatch_(loc.block, block)) continue;
+    if (!schoolMatch_(schoolDisplayName_(loc.school, loc.village), school)) continue;
+    if (village && !locMatch_(loc.village, village)) continue;
     n++;
   }
   return n;
+}
+
+// Name/Father/Gender/Class for every student matched by the same
+// district+block+school+village filter countSchoolStudents_ uses, so a
+// school can see who the counted students actually are. There is no login
+// on this site, and district/block/school/village are not secret, so this
+// requires the caller to also supply a mobile number that matches one of
+// the school's own registered students before releasing the list — that
+// proves affiliation without adding any new signup/credential system. The
+// returned records still omit mobile numbers themselves.
+function getSchoolStudents(district, block, school, village, mobile) {
+  try {
+    district = String(district || '').trim();
+    block = String(block || '').trim();
+    school = String(school || '').trim();
+    village = String(village || '').trim();
+    mobile = String(mobile || '').trim();
+    if (!school) return { ok: false, error: 'School name is required / विद्यालय का नाम लिखें' };
+    if (!/^[6-9][0-9]{9}$/.test(mobile)) {
+      return { ok: false, error: 'Enter a registered mobile number to view students / छात्र सूची देखने हेतु पंजीकृत मोबाइल नंबर लिखें' };
+    }
+
+    var sheet = getRegistrationSheet_(getSpreadsheet_());
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { ok: true, data: [] };
+
+    // Columns 3-11: Name, Father, Gender, Class, District, Block, School, Village, Mobile.
+    // Unlike countSchoolStudents_/getSchools/getVillages, this does not fall
+    // back to the pre-schema-shrink column layout (see regRowLocation_):
+    // that migration also moved Gender, Class and Mobile, so a legacy row
+    // read at these positions would show wrong values, not just miss a
+    // match. A school with registrations from before that migration may see
+    // an incomplete or unmatched student list here even once its bill total
+    // is correct.
+    var values = sheet.getRange(2, 3, lastRow - 1, 9).getValues();
+    var matched = [];
+    var mobileFound = false;
+    for (var i = 0; i < values.length; i++) {
+      var sheetSchool = String(values[i][6] || '').trim();
+      if (!sheetSchool) continue;
+      if (district && !locMatch_(values[i][4], district)) continue;
+      if (block && !locMatch_(values[i][5], block)) continue;
+      if (!schoolMatch_(schoolDisplayName_(sheetSchool, values[i][7]), school)) continue;
+      if (village && !locMatch_(values[i][7], village)) continue;
+      if (String(values[i][8] || '').trim() === mobile) mobileFound = true;
+      matched.push({
+        name: String(values[i][0] || '').trim(),
+        father: String(values[i][1] || '').trim(),
+        gender: String(values[i][2] || '').trim(),
+        cls: String(values[i][3] || '').trim()
+      });
+    }
+    if (!mobileFound) {
+      return { ok: false, error: 'Mobile number does not match a registered student at this school / यह मोबाइल नंबर इस विद्यालय के किसी पंजीकृत छात्र से मेल नहीं खाता' };
+    }
+    return { ok: true, data: matched };
+  } catch (e) {
+    logError_('getSchoolStudents', e);
+    return { ok: false, error: e.message || 'Could not load student list' };
+  }
 }
 
 // Distinct school names already registered, optionally narrowed to a
@@ -586,15 +730,16 @@ function getSchools(district, block) {
   var lastRow = sheet.getLastRow();
   var out = [];
   if (lastRow >= 2) {
-    // G:J includes Village so legacy combined values can be displayed as
-    // plain school names in the autocomplete list.
-    var values = sheet.getRange(2, 7, lastRow - 1, 4).getValues();
+    // G:L so regRowLocation_ can fall back to the pre-migration column
+    // position (see its comment) for rows written before the schema shrink.
+    var values = sheet.getRange(2, 7, lastRow - 1, 6).getValues();
     var seen = {};
     for (var i = 0; i < values.length; i++) {
-      var sheetSchool = schoolDisplayName_(values[i][2], values[i][3]);
+      var loc = regRowLocation_(values[i][0], values[i][1], values[i][2], values[i][3], values[i][4], values[i][5]);
+      var sheetSchool = schoolDisplayName_(loc.school, loc.village);
       if (!sheetSchool) continue;
-      if (district && !locMatch_(values[i][0], district)) continue;
-      if (block && !locMatch_(values[i][1], block)) continue;
+      if (district && !locMatch_(loc.district, district)) continue;
+      if (block && !locMatch_(loc.block, block)) continue;
       // De-dupe by normalized key so "GSSS X" and "Govt Sr Sec School X"
       // don't both show up as separate suggestions — keep the first spelling seen.
       var dedupeKey = schoolNormalizeKey_(sheetSchool);
@@ -606,6 +751,43 @@ function getSchools(district, block) {
   }
 
   try { cache.put(key, JSON.stringify(out), SCHOOLS_CACHE_TTL_SEC); } catch (e) { /* best-effort */ }
+  return out;
+}
+
+// Distinct village spellings already on file for one specific school, so a
+// second registration session (or the payment page) can pick the exact text
+// used before instead of retyping it from memory. countSchoolStudents_ needs
+// an exact-ish village match to keep two different schools that share a name
+// in different villages from being billed together, so drift in how a
+// village is typed for the *same* school across sessions is what silently
+// drops students from a bill — this lets the UI prevent that drift instead
+// of loosening the match itself.
+function getVillages(district, block, school) {
+  school = String(school || '').trim();
+  if (!school) return [];
+  var sheet = getRegistrationSheet_(getSpreadsheet_());
+  var lastRow = sheet.getLastRow();
+  var out = [];
+  if (lastRow >= 2) {
+    // G:L so regRowLocation_ can fall back to the pre-migration column
+    // position (see its comment) for rows written before the schema shrink.
+    var values = sheet.getRange(2, 7, lastRow - 1, 6).getValues();
+    var seen = {};
+    for (var i = 0; i < values.length; i++) {
+      var loc = regRowLocation_(values[i][0], values[i][1], values[i][2], values[i][3], values[i][4], values[i][5]);
+      if (!loc.school) continue;
+      if (district && !locMatch_(loc.district, district)) continue;
+      if (block && !locMatch_(loc.block, block)) continue;
+      if (!schoolMatch_(schoolDisplayName_(loc.school, loc.village), school)) continue;
+      var place = loc.village;
+      if (!place) continue;
+      var key = compactKey_(place);
+      if (seen[key]) continue;
+      seen[key] = true;
+      out.push(place);
+    }
+    out.sort();
+  }
   return out;
 }
 
@@ -681,7 +863,7 @@ function computeSchoolBill_(district, block, school, village, ss, registrationSh
   if (students > 0 && amountDue === 0) status = 'Paid';
   else if (amountReported > 0) status = 'Verification pending';
   else if (amountPaid > 0) status = 'Partially paid';
-  return {
+  var result = {
     students: students,
     fee: FEE_PER_STUDENT,
     amountDue: amountDue,
@@ -690,6 +872,20 @@ function computeSchoolBill_(district, block, school, village, ss, registrationSh
     amountReportable: amountReportable,
     status: status
   };
+  // A zero count is sometimes a village-spelling mismatch rather than an
+  // empty school (see getVillages) — but many schools here share a generic,
+  // place-free name, so getVillages can return villages belonging to a
+  // genuinely different school of the same name. Only surface ones that are
+  // textually plausible variants of what was typed (villageSimilar_), never
+  // the full on-file list, so this hint can't steer a payer into paying a
+  // different school's bill.
+  if (students === 0 && village) {
+    var onFile = getVillages(district, block, school).filter(function (v) {
+      return !locMatch_(v, village) && villageSimilar_(v, village);
+    });
+    if (onFile.length) result.villagesOnFile = onFile;
+  }
+  return result;
 }
 
 function buildUpi_(amountDue, school) {
@@ -727,7 +923,7 @@ function getSchoolBill(district, block, school, village) {
 
     var bill = computeSchoolBill_(district, block, school, village);
     var upiPack = buildUpi_(bill.amountDue, school);
-    return {
+    var out = {
       ok: true,
       students: bill.students,
       fee: bill.fee,
@@ -739,6 +935,8 @@ function getSchoolBill(district, block, school, village) {
       needsUpi: upiPack.needsUpi,
       upi: upiPack.upi
     };
+    if (bill.villagesOnFile) out.villagesOnFile = bill.villagesOnFile;
+    return out;
   } catch (e) {
     logError_('getSchoolBill', e);
     return { ok: false, error: e.message || 'Could not load bill' };

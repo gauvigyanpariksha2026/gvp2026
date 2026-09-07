@@ -245,11 +245,13 @@ select.inp:disabled{
                      lang="en" autocapitalize="words" spellcheck="false" required>
               <datalist id="schoolList"></datalist>
               <p class="hint">Example: Govt Senior Secondary School</p>
+              <p id="schoolGenericWarn" class="hint hidden" style="color:#8a6423">Many schools share this generic name — add the village/area name so yours isn't confused with another. Example: "GSSS Kotri" instead of just "GSSS".</p>
             </div>
             <div>
               <label class="lbl" for="village">गाँव / शहर / Village or city <span class="req">*</span></label>
-              <input id="village" class="inp" type="text" autocomplete="address-level2"
+              <input id="village" class="inp" type="text" autocomplete="address-level2" list="villageList"
                      placeholder="Village or City" lang="en" autocapitalize="words" spellcheck="false" required>
+              <datalist id="villageList"></datalist>
               <p class="hint">Example: Bhilwara</p>
             </div>
           </div>
@@ -782,8 +784,12 @@ function fillBlocks(district){
 districtEl.addEventListener('change',function(){
   fillBlocks(this.value);
   refreshSchoolList();
+  refreshVillageList();
 });
-blockEl.addEventListener('change',refreshSchoolList);
+blockEl.addEventListener('change',function(){
+  refreshSchoolList();
+  refreshVillageList();
+});
 
 function refreshSchoolList(){
   var datalist=$('schoolList');
@@ -801,6 +807,69 @@ function refreshSchoolList(){
     });
   }).catch(function(){ /* autocomplete is a convenience, fail silently */ });
 }
+
+// Suggest the exact village spelling already used for this school so a
+// second registration session for the same school doesn't drift to a
+// slightly different spelling — the payment bill later matches on school
+// AND village, so drift here is what makes a later batch's students go
+// missing from the school's bill.
+function refreshVillageList(){
+  var datalist=$('villageList');
+  datalist.innerHTML='';
+  var school=$('school').value.trim();
+  var requestKey=districtEl.value+' '+blockEl.value+' '+school;
+  refreshVillageList.requestKey=requestKey;
+  if(!apiReady() || !districtEl.value || !blockEl.value || !school) return;
+  GVP_API.get('getVillages',{district:districtEl.value,block:blockEl.value,school:school}).then(function(res){
+    if(refreshVillageList.requestKey!==requestKey) return;
+    if(!res||!res.ok||!res.data) return;
+    res.data.forEach(function(name){
+      var o=document.createElement('option'); o.value=name; datalist.appendChild(o);
+    });
+  }).catch(function(){ /* autocomplete is a convenience, fail silently */ });
+}
+
+$('school').addEventListener('change',refreshVillageList);
+$('school').addEventListener('blur',refreshVillageList);
+
+// Same generic administrative words Code.gs's schoolNormalizeKey_ strips
+// (govt/senior/secondary/school abbreviations etc.). A huge share of real
+// registrations here are just "GSSS" or "GUPS" with no place name at all —
+// Village then becomes the only thing telling two same-named schools apart,
+// which is fragile against the exact spelling-drift bug this site already
+// hit. Nudge (don't block) toward including a distinctive place name.
+var GENERIC_SCHOOL_WORDS_={
+  govt:1,government:1,sr:1,senior:1,sen:1,sec:1,secondary:1,school:1,
+  pri:1,primary:1,prim:1,up:1,upper:1,mid:1,middle:1,
+  vidyalaya:1,vidhyalaya:1,gsss:1,gss:1,gups:1,gps:1,gms:1,dps:1
+};
+function isGenericSchoolName(s){
+  var words=String(s||'').toLowerCase().split(/[^a-z0-9]+/).filter(function(w){return w;});
+  if(!words.length) return false;
+  return words.every(function(w){ return GENERIC_SCHOOL_WORDS_[w]; });
+}
+// Mirrors isFakeMobile_ in Code.gs: catches a placeholder number (all one
+// digit, or a straight ascending/descending run of digits) before the round
+// trip to the server, so a student sees the problem while still on the form.
+function isFakeMobile(mobile){
+  mobile=String(mobile||'').trim();
+  if(!/^[0-9]{10}$/.test(mobile)) return false;
+  if(/^(\d)\1{9}$/.test(mobile)) return true;
+  var ascending=true, descending=true;
+  for(var i=1;i<mobile.length;i++){
+    var prev=Number(mobile.charAt(i-1)), cur=Number(mobile.charAt(i));
+    if((cur-prev+10)%10!==1) ascending=false;
+    if((prev-cur+10)%10!==1) descending=false;
+  }
+  return ascending||descending;
+}
+
+function refreshSchoolGenericWarn(){
+  var warn=$('schoolGenericWarn');
+  if(isGenericSchoolName($('school').value)){ show(warn); } else { hide(warn); }
+}
+$('school').addEventListener('input',refreshSchoolGenericWarn);
+$('school').addEventListener('blur',refreshSchoolGenericWarn);
 
 ['name','father','school','village'].forEach(function(id){
   $(id).addEventListener('input',function(){
@@ -840,6 +909,7 @@ $('submitBtn').addEventListener('click',function(){
   if(data.school && !PLACE_EN.test(data.school)){errs.push('विद्यालय का नाम अंग्रेज़ी में लिखें / Write school name in English');bad($('school'));}
   if(data.village && !PLACE_EN.test(data.village)){errs.push('गाँव / शहर अंग्रेज़ी में लिखें / Write village or city in English');bad($('village'));}
   if(!/^[6-9][0-9]{9}$/.test(data.mobile)){errs.push('मोबाइल नंबर सही नहीं है');bad($('mobile'));}
+  else if(isFakeMobile(data.mobile)){errs.push('असली मोबाइल नंबर लिखें, प्लेसहोल्डर नहीं / Enter a real mobile number, not a placeholder');bad($('mobile'));}
   if(!data.declare) errs.push('घोषणा स्वीकार करें');
 
   if(errs.length){

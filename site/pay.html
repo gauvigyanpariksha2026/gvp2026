@@ -172,8 +172,9 @@ select.inp:disabled{
         </div>
         <div class="sm:col-span-2">
           <label class="lbl" for="village">गाँव / शहर / Village or city <span class="req">*</span></label>
-          <input id="village" class="inp" type="text" autocomplete="address-level2"
+          <input id="village" class="inp" type="text" autocomplete="address-level2" list="villageList"
                  placeholder="Village or City" lang="en" autocapitalize="words" spellcheck="false" required>
+          <datalist id="villageList"></datalist>
           <p class="hint">पंजीकरण फॉर्म में लिखा गाँव / शहर — English only</p>
         </div>
       </div>
@@ -195,6 +196,18 @@ select.inp:disabled{
         <p id="billStatus" class="mt-2 text-xs text-ink/55"></p>
       </div>
       <p id="zeroNote" class="hidden mt-4 text-sm text-ink/70"></p>
+
+      <div id="viewStudentsWrap" class="hidden mt-4">
+        <button id="viewStudentsBtn" type="button" class="text-sm underline text-terra">View registered students / पंजीकृत छात्र देखें</button>
+        <div id="studentsMobileWrap" class="hidden mt-2 flex flex-wrap items-center gap-2">
+          <label class="lbl" for="studentsMobile">पंजीकृत मोबाइल नंबर / A registered student's mobile number</label>
+          <input id="studentsMobile" class="inp font-lat tracking-wider" type="text" inputmode="numeric"
+                 pattern="[6-9][0-9]{9}" maxlength="10" autocomplete="off" style="max-width:14rem">
+          <button id="studentsMobileGo" type="button" class="btn" style="padding:.45rem 1rem;font-size:.85rem">Show / दिखाएं</button>
+        </div>
+        <p class="hint">Enter the mobile number used for any one of this school's registered students, to confirm you're affiliated with this school.</p>
+      </div>
+      <div id="studentsList" class="hidden mt-3 rounded-lg border border-gold/30 bg-cream/40 px-4 py-3 text-sm"></div>
 
       <div id="upiBox" class="hidden mt-6 text-center">
         <p class="lbl"><span class="upi-mark" aria-hidden="true">↗</span> Pay with UPI / यूपीआई से भुगतान करें</p>
@@ -423,10 +436,12 @@ districtEl.addEventListener('change',function(){
   fillBlocks(this.value);
   hideBill();
   refreshSchoolList();
+  refreshVillageList();
 });
 blockEl.addEventListener('change',function(){
   hideBill();
   refreshSchoolList();
+  refreshVillageList();
 });
 
 function refreshSchoolList(){
@@ -446,12 +461,36 @@ function refreshSchoolList(){
   }).catch(function(){ /* autocomplete is a convenience, fail silently */ });
 }
 
+// The village typed for a school must match what's already on file almost
+// exactly (see Code.gs countSchoolStudents_) so that two different schools
+// sharing a name in different villages aren't billed together. Suggesting
+// the exact village text already used for the chosen school stops that
+// requirement from silently hiding students who were registered with a
+// slightly different spelling in an earlier or later session.
+function refreshVillageList(){
+  var datalist=$('villageList');
+  datalist.innerHTML='';
+  var school=$('school').value.trim();
+  var requestKey=districtEl.value+' '+blockEl.value+' '+school;
+  refreshVillageList.requestKey=requestKey;
+  if(!apiReady() || !districtEl.value || !blockEl.value || !school) return;
+  GVP_API.get('getVillages',{district:districtEl.value,block:blockEl.value,school:school}).then(function(res){
+    if(refreshVillageList.requestKey!==requestKey) return;
+    if(!res||!res.ok||!res.data) return;
+    res.data.forEach(function(name){
+      var o=document.createElement('option'); o.value=name; datalist.appendChild(o);
+    });
+  }).catch(function(){ /* autocomplete is a convenience, fail silently */ });
+}
+
 var inp=$('school');
 inp.addEventListener('input',function(){
   hideBill();
   if(/[ऀ-ॿ]/.test(this.value)) bad(this);
   else this.classList.remove('err');
 });
+inp.addEventListener('change',refreshVillageList);
+inp.addEventListener('blur',refreshVillageList);
 
 $('village').addEventListener('input',function(){
   hideBill();
@@ -467,6 +506,7 @@ $('payeeName').addEventListener('input',function(){
 var LAST_BILL=null;
 var LAST_BILL_KEY='';
 var LAST_BILL_LOOKUP_SCHOOL='';
+var LAST_BILL_FIELDS=null;
 var BILL_REQUEST_ID=0;
 function schoolKey(f){
   return [f.district,f.block,f.school,f.village].join('|').toLowerCase();
@@ -489,8 +529,11 @@ function hideBill(){
   LAST_BILL=null;
   LAST_BILL_KEY='';
   LAST_BILL_LOOKUP_SCHOOL='';
+  LAST_BILL_FIELDS=null;
   hide($('billBox')); hide($('payForm')); hide($('billErr')); hide($('done'));
   hide($('upiBox')); hide($('needsUpiBox')); hide($('zeroNote')); hide($('billPaid'));
+  hide($('viewStudentsWrap')); hide($('studentsMobileWrap')); hide($('studentsList'));
+  $('studentsList').innerHTML=''; $('studentsMobile').value='';
   $('billBtn').disabled=false; $('billSpin').classList.add('hidden');
   $('billTxt').textContent='See amount / राशि देखें';
   setPayFlow(1);
@@ -567,6 +610,9 @@ $('billBtn').addEventListener('click',function(){
       LAST_BILL=res;
       LAST_BILL_KEY=schoolKey(f);
       LAST_BILL_LOOKUP_SCHOOL=res.lookupSchool||f.school;
+      LAST_BILL_FIELDS={district:f.district,block:f.block,school:LAST_BILL_LOOKUP_SCHOOL,village:f.village};
+      hide($('studentsMobileWrap')); hide($('studentsList')); $('studentsList').innerHTML=''; $('studentsMobile').value='';
+      if(res.students>0){ show($('viewStudentsWrap')); } else { hide($('viewStudentsWrap')); }
       show($('billBox'));
       setPayFlow(2);
       if(typeof anime!=='undefined'){
@@ -587,7 +633,33 @@ $('billBtn').addEventListener('click',function(){
       hide($('upiBox')); hide($('needsUpiBox')); hide($('zeroNote')); hide($('payForm'));
 
       if(res.students<1){
-        show($('zeroNote'),'No students registered yet for this school. / इस विद्यालय के छात्र अभी पंजीकृत नहीं हैं।');
+        var zeroEl=$('zeroNote');
+        zeroEl.innerHTML='';
+        zeroEl.classList.remove('hidden');
+        var msg=document.createElement('p');
+        msg.textContent='No students registered yet for this school. / इस विद्यालय के छात्र अभी पंजीकृत नहीं हैं।';
+        zeroEl.appendChild(msg);
+        // A zero count is often a village-spelling mismatch (see Code.gs
+        // countSchoolStudents_), not an empty school — offer the spelling(s)
+        // actually on file so the payer isn't stuck retyping guesses.
+        if(res.villagesOnFile && res.villagesOnFile.length){
+          var hint=document.createElement('p');
+          hint.className='mt-2';
+          hint.appendChild(document.createTextNode('This school is on file under a different village spelling — try: '));
+          res.villagesOnFile.forEach(function(v,idx){
+            if(idx>0) hint.appendChild(document.createTextNode(', '));
+            var btn=document.createElement('button');
+            btn.type='button';
+            btn.className='underline text-terra';
+            btn.textContent=v;
+            btn.addEventListener('click',function(){
+              $('village').value=v;
+              $('billBtn').click();
+            });
+            hint.appendChild(btn);
+          });
+          zeroEl.appendChild(hint);
+        }
         return;
       }
       if(res.amountDue<=0){
@@ -617,6 +689,68 @@ $('billBtn').addEventListener('click',function(){
     })
     .catch(function(e){fail('Server error: '+errorMessage(e,'server error'));});
 });
+
+var STUDENTS_REQUEST_ID=0;
+
+// The list only unlocks after a mobile number matching one of the school's
+// own registered students is entered (see getSchoolStudents in Code.gs) —
+// this button just reveals that field, it does not fetch anything itself.
+$('viewStudentsBtn').addEventListener('click',function(){
+  var wrap=$('studentsMobileWrap');
+  if(!wrap.classList.contains('hidden')){ hide(wrap); hide($('studentsList')); $('studentsList').innerHTML=''; return; }
+  show(wrap);
+  $('studentsMobile').focus();
+});
+
+function loadStudentsList(){
+  var listEl=$('studentsList');
+  var mobile=$('studentsMobile').value.trim();
+  if(!/^[6-9][0-9]{9}$/.test(mobile)){
+    bad($('studentsMobile'));
+    listEl.textContent='मोबाइल नंबर सही नहीं है / Enter a valid 10-digit mobile number';
+    show(listEl);
+    return;
+  }
+  $('studentsMobile').classList.remove('err');
+  if(!LAST_BILL_FIELDS){ return; }
+  var requestId=++STUDENTS_REQUEST_ID;
+  listEl.innerHTML='Loading…';
+  show(listEl);
+  var params={district:LAST_BILL_FIELDS.district,block:LAST_BILL_FIELDS.block,school:LAST_BILL_FIELDS.school,village:LAST_BILL_FIELDS.village,mobile:mobile};
+  GVP_API.get('getSchoolStudents',params).then(function(res){
+    if(requestId!==STUDENTS_REQUEST_ID) return;
+    listEl.innerHTML='';
+    if(!res||!res.ok){
+      listEl.textContent=(res&&res.error)||'Could not load student list.';
+      return;
+    }
+    if(!res.data||!res.data.length){
+      listEl.textContent='No students found.';
+      return;
+    }
+    var table=document.createElement('table');
+    table.className='w-full text-left';
+    var thead=document.createElement('tr');
+    ['Name','Father','Gender','Class'].forEach(function(h){
+      var th=document.createElement('th'); th.className='pb-1 pr-3 text-xs uppercase text-ink/55'; th.textContent=h; thead.appendChild(th);
+    });
+    table.appendChild(thead);
+    res.data.forEach(function(st){
+      var tr=document.createElement('tr');
+      [st.name,st.father,st.gender,st.cls].forEach(function(v){
+        var td=document.createElement('td'); td.className='py-1 pr-3'; td.textContent=v||''; tr.appendChild(td);
+      });
+      table.appendChild(tr);
+    });
+    listEl.appendChild(table);
+  }).catch(function(){
+    if(requestId!==STUDENTS_REQUEST_ID) return;
+    listEl.textContent='Could not load student list.';
+  });
+}
+$('studentsMobileGo').addEventListener('click',loadStudentsList);
+$('studentsMobile').addEventListener('keydown',function(e){ if(e.key==='Enter') loadStudentsList(); });
+$('studentsMobile').addEventListener('input',function(){ this.classList.remove('err'); });
 
 $('payBtn').addEventListener('click',function(){
   clean(); hide($('formErr'));
