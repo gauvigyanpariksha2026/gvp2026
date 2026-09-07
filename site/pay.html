@@ -135,12 +135,6 @@ select.inp:disabled{
     <div class="payment-coin" aria-hidden="true"><small>प्रति छात्र</small><strong>₹30</strong><span>एक साथ भुगतान</span></div>
   </header>
 
-  <div class="rounded-2xl shadow-lg px-7 py-6 sm:px-10 sm:py-7 mt-6 mb-6" style="background:linear-gradient(135deg,#4A6C42,#A94B2C)">
-    <p class="text-xs uppercase tracking-widest mb-1" style="color:#fdf6ea;opacity:.9">🎓 भुगतान में समस्या आ रही है? / Having trouble with payment?</p>
-    <p class="text-sm" style="color:#fdf6ea;opacity:.95">आप बिना भुगतान किए भी अपने विद्यालय की पंजीकृत छात्र सूची देख व PDF डाउनलोड कर सकते हैं। / You can still view and download your school's registered student list without paying.</p>
-    <button id="quickStudentsBtn" type="button" class="gvp-pulse mt-4" style="padding:.65rem 1.3rem;font-size:.9rem;font-weight:600;background:#fdf6ea;color:#A94B2C;border-radius:.6rem;border:none;cursor:pointer">विद्यार्थी सूची देखें / View student list →</button>
-  </div>
-
   <main id="main-content" class="payment-panel form-panel rounded-b-2xl border border-gold/30 bg-cream/85 backdrop-blur px-5 py-7 sm:px-10 sm:py-9 shadow-sm">
 
     <div class="form-intro">
@@ -158,6 +152,12 @@ select.inp:disabled{
       <div data-pay-flow="2"><b aria-hidden="true">₹</b><span><strong>राशि</strong><small>Amount</small></span></div>
       <i aria-hidden="true"></i>
       <div data-pay-flow="3"><b aria-hidden="true">✅</b><span><strong>पुष्टि</strong><small>Confirm</small></span></div>
+    </div>
+
+    <div class="rounded-xl shadow-sm px-6 py-5 mt-6 mb-6" style="background:linear-gradient(135deg,#4A6C42,#A94B2C)">
+      <p class="text-xs uppercase tracking-widest mb-1" style="color:#fdf6ea;opacity:.9">🎓 भुगतान में समस्या आ रही है? / Having trouble with payment?</p>
+      <p class="text-sm" style="color:#fdf6ea;opacity:.95">आप बिना भुगतान किए भी अपने विद्यालय की पंजीकृत छात्र सूची देख व PDF डाउनलोड कर सकते हैं। / You can still view and download your school's registered student list without paying.</p>
+      <button id="quickStudentsBtn" type="button" class="gvp-pulse mt-3" style="padding:.6rem 1.25rem;font-size:.85rem;font-weight:600;background:#fdf6ea;color:#A94B2C;border-radius:.5rem;border:none;cursor:pointer">विद्यार्थी सूची देखें / View student list →</button>
     </div>
 
     <div id="loadErr" class="hidden mb-6 rounded-lg border border-terra/40 bg-terra/10 px-4 py-3 text-sm"></div>
@@ -199,9 +199,9 @@ select.inp:disabled{
         </button>
       </div>
 
-      <div id="viewStudentsWrap" class="hidden mt-4">
-        <button id="viewStudentsBtn" type="button" class="btn" style="padding:.6rem 1.1rem;font-size:.9rem">View &amp; download your school's student list / अपने विद्यालय की छात्र सूची देखें व PDF डाउनलोड करें</button>
-        <div id="studentsMobileWrap" class="hidden mt-2 flex flex-wrap items-center gap-2">
+      <div id="viewStudentsWrap" class="hidden mt-6 border-t border-gold/25 pt-5">
+        <button id="viewStudentsBtn" type="button" class="btn" style="padding:.6rem 1.1rem;font-size:.9rem;background:#4A6C42;color:#fff">View &amp; download your school's student list / अपने विद्यालय की छात्र सूची देखें व PDF डाउनलोड करें</button>
+        <div id="studentsMobileWrap" class="hidden mt-3 flex flex-wrap items-center gap-2">
           <label class="lbl" for="studentsMobile">पंजीकृत मोबाइल नंबर / A registered student's mobile number</label>
           <input id="studentsMobile" class="inp font-lat tracking-wider" type="text" inputmode="numeric"
                  pattern="[6-9][0-9]{9}" maxlength="10" autocomplete="off" style="max-width:14rem">
@@ -211,7 +211,7 @@ select.inp:disabled{
       </div>
       <div id="studentsList" class="hidden mt-3 rounded-lg border border-gold/30 bg-cream/40 px-4 py-3 text-sm overflow-x-auto" style="max-height:300px;overflow-y:auto"></div>
       <div id="studentsDownloadWrap" class="hidden mt-3">
-        <button id="studentsDownloadBtn" type="button" class="btn" style="padding:.55rem 1rem;font-size:.85rem">Download designed PDF / सुंदर PDF डाउनलोड करें</button>
+        <button id="studentsDownloadBtn" type="button" class="btn" style="padding:.55rem 1rem;font-size:.85rem;background:#4A6C42;color:#fff">Download designed PDF / सुंदर PDF डाउनलोड करें</button>
         <p class="hint">Includes school details and the full student list. OMR numbers are not included.</p>
         <p id="studentsDownloadStatus" class="hint" role="status" aria-live="polite"></p>
       </div>
