@@ -529,7 +529,11 @@ function applyPayPrefill(){
   $('billBtn').click();
   if(!pMobile) return;
 
-  if($('viewStudentsBtn')) $('viewStudentsBtn').classList.remove('gvp-pulse');
+  if($('quickStudentsBtn')){
+    $('quickStudentsBtn').classList.remove('gvp-pulse');
+    $('quickStudentsBtn').textContent='सूची छुपाएं / Hide student list ▴';
+    $('quickStudentsBtn').setAttribute('aria-expanded','true');
+  }
   var tries=0;
   var iv=setInterval(function(){
     tries++;
@@ -1115,12 +1119,14 @@ function loadStudentsList(){
     var table=document.createElement('table');
     table.className='w-full text-left';
     var thead=document.createElement('tr');
+    thead.className='border-b border-gold/30';
     ['अनुक्रमांक / Reg No.','विद्यार्थी / Name','पिता / Father','लिंग / Gender','कक्षा / Class'].forEach(function(h){
       var th=document.createElement('th'); th.className='pb-1 pr-3 text-xs uppercase text-ink/55 whitespace-nowrap'; th.textContent=h; thead.appendChild(th);
     });
     table.appendChild(thead);
     res.data.forEach(function(st){
       var tr=document.createElement('tr');
+      tr.className='border-b border-gold/15 last:border-b-0';
       [st.regNo||'—',st.name,st.father,st.gender,st.cls].forEach(function(v,idx){
         var td=document.createElement('td'); td.className='py-1 pr-3 whitespace-nowrap'+(idx===0?' font-mono text-xs font-medium text-terra':''); td.textContent=v||''; tr.appendChild(td);
       });
