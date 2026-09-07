@@ -793,7 +793,6 @@ blockEl.addEventListener('change',function(){
 
 function refreshSchoolList(){
   var datalist=$('schoolList');
-  datalist.innerHTML='';
   // A slower request for the previous selection must not replace the
   // suggestions belonging to the current district/block.
   var requestKey=districtEl.value+'\u0000'+blockEl.value;
@@ -802,9 +801,17 @@ function refreshSchoolList(){
   GVP_API.get('getSchools',{district:districtEl.value,block:blockEl.value}).then(function(res){
     if(refreshSchoolList.requestKey!==requestKey) return;
     if(!res||!res.ok||!res.data) return;
+    // Build the replacement off-DOM and swap it in only once the new data is
+    // ready, instead of clearing then repopulating — on mobile, clearing
+    // first leaves the native suggestion popup empty for the whole network
+    // round trip, which shows up as the list going blank or flickering
+    // while the user is actively typing/tapping through it.
+    var frag=document.createDocumentFragment();
     res.data.forEach(function(name){
-      var o=document.createElement('option'); o.value=name; datalist.appendChild(o);
+      var o=document.createElement('option'); o.value=name; frag.appendChild(o);
     });
+    datalist.innerHTML='';
+    datalist.appendChild(frag);
   }).catch(function(){ /* autocomplete is a convenience, fail silently */ });
 }
 
@@ -815,7 +822,6 @@ function refreshSchoolList(){
 // missing from the school's bill.
 function refreshVillageList(){
   var datalist=$('villageList');
-  datalist.innerHTML='';
   var school=$('school').value.trim();
   var requestKey=districtEl.value+' '+blockEl.value+' '+school;
   refreshVillageList.requestKey=requestKey;
@@ -823,9 +829,12 @@ function refreshVillageList(){
   GVP_API.get('getVillages',{district:districtEl.value,block:blockEl.value,school:school}).then(function(res){
     if(refreshVillageList.requestKey!==requestKey) return;
     if(!res||!res.ok||!res.data) return;
+    var frag=document.createDocumentFragment();
     res.data.forEach(function(name){
-      var o=document.createElement('option'); o.value=name; datalist.appendChild(o);
+      var o=document.createElement('option'); o.value=name; frag.appendChild(o);
     });
+    datalist.innerHTML='';
+    datalist.appendChild(frag);
   }).catch(function(){ /* autocomplete is a convenience, fail silently */ });
 }
 

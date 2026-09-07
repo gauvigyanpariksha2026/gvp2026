@@ -617,6 +617,7 @@ a:focus-visible {
   border: 0;
   border-radius: 17px;
   background: transparent;
+  -webkit-perspective: 1200px;
   perspective: 1200px;
   text-align: left;
   isolation: isolate;
@@ -631,16 +632,22 @@ a:focus-visible {
   position: absolute;
   inset: 0;
   display: block;
+  -webkit-transform-style: preserve-3d;
   transform-style: preserve-3d;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  transition: -webkit-transform .68s cubic-bezier(.2, .78, .25, 1);
   transition: transform .68s cubic-bezier(.2, .78, .25, 1);
 }
 
 .flash-card:hover .flash-card-inner {
+  -webkit-transform: rotateX(2deg) rotateY(-3deg) translateY(-3px);
   transform: rotateX(2deg) rotateY(-3deg) translateY(-3px);
 }
 
 .flash-card.is-flipped .flash-card-inner,
 .flash-card.is-flipped:hover .flash-card-inner {
+  -webkit-transform: rotateY(180deg);
   transform: rotateY(180deg);
 }
 
