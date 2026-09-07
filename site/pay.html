@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="गौ विज्ञान परीक्षा 2026–27 के लिए विद्यालय का सामूहिक शुल्क देखें और UPI भुगतान की सूचना दर्ज करें।">
 <meta name="theme-color" content="#f5eddf">
+<link rel="icon" type="image/jpeg" href="img/firefly-1.jpg">
+<meta property="og:type" content="website">
+<meta property="og:title" content="गौ विज्ञान परीक्षा — विद्यालय शुल्क भुगतान व छात्र सूची">
+<meta property="og:description" content="विद्यालय का सामूहिक परीक्षा शुल्क देखें, UPI भुगतान दर्ज करें और छात्र सूची PDF डाउनलोड करें।">
+<meta property="og:image" content="img/firefly-1.jpg">
+<meta property="og:locale" content="hi_IN">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="गौ विज्ञान परीक्षा — विद्यालय पोर्टल">
+<meta name="twitter:description" content="विद्यालय सामूहिक शुल्क भुगतान व छात्र सूची PDF पोर्टल।">
+<meta name="twitter:image" content="img/firefly-1.jpg">
 <title>गौ विज्ञान परीक्षा — विद्यालय भुगतान</title>
 <style>
 @import url("https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@400;500;600&family=Cormorant+Garamond:wght@400;500;600&family=Yatra+One&display=swap");*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }
@@ -191,6 +201,10 @@ select.inp:disabled{
           <h3 class="text-sm font-semibold text-ink">विद्यालय सत्यापन व छात्र सूची <span class="sec-en text-xs">Verify School &amp; View Student List</span></h3>
         </div>
         <p class="hint mb-3 text-ink/80">अपने विद्यालय की पंजीकृत छात्र सूची देखने व PDF डाउनलोड करने हेतु किसी भी एक पंजीकृत विद्यार्थी का मोबाइल नंबर दर्ज करें।</p>
+        <div id="schoolStatusBadge" class="mb-3 text-xs rounded-lg border px-3 py-2 flex items-center gap-2 border-gold/30 bg-gold/10 text-ink/80">
+          <span id="schoolStatusIcon" aria-hidden="true">ℹ️</span>
+          <span id="schoolStatusText">छात्र सूची देखने के लिए कृपया नीचे दिए गए फॉर्म से अपना विद्यालय चुनें</span>
+        </div>
         <div id="studentsMobileWrap" class="flex flex-wrap items-center gap-2">
           <label class="lbl block w-full text-xs font-semibold text-ink/80 mb-1" for="studentsMobile">पंजीकृत मोबाइल नंबर / A registered student's mobile number</label>
           <input id="studentsMobile" class="inp font-lat tracking-wider bg-cream/90" type="text" inputmode="numeric"
@@ -387,11 +401,27 @@ function errorMessage(e,fallback){
 }
 function digitsOnly(id,maxLength){
   var el=$(id);
+  if(!el) return;
+  el.addEventListener('paste',function(e){
+    var paste=(e.clipboardData||window.clipboardData||{}).getData?e.clipboardData.getData('text'):'';
+    if(maxLength===10 && paste){
+      var num=paste.replace(/\s+/g,'').replace(/^[+]?(91|0)(?=[6-9][0-9]{9}$)/,'').replace(/[^0-9]/g,'');
+      if(num.length===10 && /^[6-9][0-9]{9}$/.test(num)){
+        e.preventDefault();
+        this.value=num;
+        this.dispatchEvent(new Event('input'));
+      }
+    }
+  });
   el.addEventListener('beforeinput',function(e){
     if(e.data && /[^0-9]/.test(e.data)) e.preventDefault();
   });
   el.addEventListener('input',function(){
-    var cleaned=this.value.replace(/[^0-9]/g,'').slice(0,maxLength);
+    var val=this.value.replace(/[^0-9]/g,'');
+    if(maxLength===10 && val.length>10){
+      val=val.replace(/^[+]?(91|0)(?=[6-9][0-9]{9}$)/,'');
+    }
+    var cleaned=val.slice(0,maxLength);
     if(this.value!==cleaned) this.value=cleaned;
     this.classList.remove('err');
   });
@@ -487,6 +517,7 @@ function applyPayPrefill(){
   $('village').value=pVillage;
   refreshSchoolList();
   refreshVillageList();
+  updateSchoolStatusBadge();
 
   $('billBtn').click();
   if(!pMobile) return;
@@ -497,8 +528,9 @@ function applyPayPrefill(){
     tries++;
     if(LAST_BILL_FIELDS){
       clearInterval(iv);
+      updateSchoolStatusBadge();
       show($('viewStudentsWrap'));
-      $('studentsMobile').value=pMobile;
+      $('studentsMobile').value=pMobile.replace(/\s+/g,'').replace(/^[+]?(91|0)(?=[6-9][0-9]{9}$)/,'').trim();
       loadStudentsList();
     }else if(tries>40){
       clearInterval(iv);
@@ -692,6 +724,47 @@ function schoolFields(){
   };
 }
 
+function updateSchoolStatusBadge(){
+  var badge=$('schoolStatusBadge');
+  var icon=$('schoolStatusIcon');
+  var text=$('schoolStatusText');
+  if(!badge||!text) return;
+  var sf=LAST_BILL_FIELDS||schoolFields();
+  if(sf.school && sf.district){
+    var desc=sf.school+(sf.village?', '+sf.village:'')+' ('+sf.district+')';
+    badge.className='mb-3 text-xs rounded-lg border px-3 py-2 flex items-center gap-2 border-leaf/40 bg-leaf/10 text-leaf-deep font-medium';
+    icon.textContent='🏫';
+    text.innerHTML='चयनित विद्यालय: <strong>'+desc+'</strong> <span class="ml-1 text-[11px] text-leaf">✓ सक्रिय</span>';
+  } else {
+    badge.className='mb-3 text-xs rounded-lg border px-3 py-2 flex items-center gap-2 border-gold/30 bg-gold/10 text-ink/80';
+    icon.textContent='ℹ️';
+    text.innerHTML='छात्र सूची देखने के लिए कृपया <strong>नीचे दिए फॉर्म से पहले अपना विद्यालय चुनें</strong>';
+  }
+}
+['district','block','school','village'].forEach(function(id){
+  var el=$(id);
+  if(el){
+    el.addEventListener('input',function(){
+      updateSchoolStatusBadge();
+      if(LAST_STUDENTS.length>0){
+        LAST_STUDENTS=[];
+        hide($('studentsList'));
+        hide($('studentsDownloadWrap'));
+        $('studentsList').innerHTML='';
+      }
+    });
+    el.addEventListener('change',function(){
+      updateSchoolStatusBadge();
+      if(LAST_STUDENTS.length>0){
+        LAST_STUDENTS=[];
+        hide($('studentsList'));
+        hide($('studentsDownloadWrap'));
+        $('studentsList').innerHTML='';
+      }
+    });
+  }
+});
+
 $('billBtn').addEventListener('click',function(){
   clean(); hide($('billErr')); hide($('done'));
   var f=schoolFields();
@@ -856,6 +929,7 @@ $('quickStudentsBtn').addEventListener('click',function(){
   var wrap=$('viewStudentsWrap');
   var isHidden=wrap.classList.contains('hidden');
   if(isHidden){
+    updateSchoolStatusBadge();
     show(wrap);
     this.setAttribute('aria-expanded','true');
     this.textContent='सूची छुपाएं / Hide student list ▴';
@@ -874,7 +948,8 @@ $('quickStudentsBtn').addEventListener('click',function(){
 
 function loadStudentsList(){
   var listEl=$('studentsList');
-  var mobile=$('studentsMobile').value.trim();
+  var mobile=$('studentsMobile').value.replace(/\s+/g,'').replace(/^[+]?(91|0)(?=[6-9][0-9]{9}$)/,'').trim();
+  $('studentsMobile').value=mobile;
   if(!/^[6-9][0-9]{9}$/.test(mobile)){
     bad($('studentsMobile'));
     shakeField($('studentsMobile'));
@@ -883,9 +958,7 @@ function loadStudentsList(){
     return;
   }
   $('studentsMobile').classList.remove('err');
-  // Works even without a bill lookup first (LAST_BILL_FIELDS unset) — the
-  // "quick access" banner above the header sends people straight here so
-  // payment trouble doesn't block getting their own school's data.
+  updateSchoolStatusBadge();
   var lookup=LAST_BILL_FIELDS||schoolFields();
   if(!lookup.district||!lookup.block||!lookup.school||!lookup.village){
     var missing=!lookup.district?$('district'):!lookup.block?blockEl:!lookup.school?$('school'):$('village');
@@ -967,7 +1040,8 @@ $('payBtn').addEventListener('click',function(){
   }
   var payeeName=$('payeeName').value.trim();
   var utr=$('utr').value.replace(/\s+/g,'').trim();
-  var mobile=$('mobile').value.trim();
+  var mobile=$('mobile').value.replace(/\s+/g,'').replace(/^[+]?(91|0)(?=[6-9][0-9]{9}$)/,'').trim();
+  $('mobile').value=mobile;
   var amountStr=$('payAmount').value.trim();
   var amount=parseInt(amountStr,10);
   var NAME_EN=/^[A-Za-z][A-Za-z .'-]{1,78}$/;

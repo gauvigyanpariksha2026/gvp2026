@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="गौ विज्ञान परीक्षा 2026–27 के लिए छात्र पंजीकरण, परीक्षा कार्यक्रम और विद्यालय शुल्क भुगतान।">
 <meta name="theme-color" content="#f5eddf">
+<link rel="icon" type="image/jpeg" href="img/firefly-1.jpg">
+<meta property="og:type" content="website">
+<meta property="og:title" content="गौ विज्ञान परीक्षा 2026–27 — विद्यार्थी पंजीकरण">
+<meta property="og:description" content="गौ विज्ञान अनुसंधान एवं सामान्य ज्ञान परीक्षा — कक्षा 8 से 12 के विद्यार्थियों हेतु ऑनलाइन पंजीकरण फॉर्म।">
+<meta property="og:image" content="img/firefly-1.jpg">
+<meta property="og:locale" content="hi_IN">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="गौ विज्ञान परीक्षा 2026–27">
+<meta name="twitter:description" content="गौ विज्ञान परीक्षा 2026–27 — विद्यार्थी पंजीकरण">
+<meta name="twitter:image" content="img/firefly-1.jpg">
 <title>गौ विज्ञान परीक्षा — पंजीकरण</title>
 <style>
 @import url("https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@400;500;600&family=Cormorant+Garamond:wght@400;500;600&display=swap");*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }
@@ -320,7 +330,7 @@ select.inp:disabled{
       <button id="printConfirmBtn" type="button" class="btn">पुष्टि रसीद सहेजें / Save confirmation</button>
     </p>
     <p class="mt-2 text-xs text-ink/50 done-item">इसे प्रिंट करें या PDF के रूप में सुरक्षित रखें / Print or save as PDF</p>
-    <div class="mt-6 pt-4 border-t border-gold/25 text-xs text-ink/60 done-item" style="max-width:24rem;margin-left:auto;margin-right:auto">
+    <div class="mt-6 pt-4 border-t border-gold/25 text-xs text-ink/60 done-item print-hide" style="max-width:24rem;margin-left:auto;margin-right:auto">
       <span>विद्यालय प्रभारी या शिक्षक हैं? </span>
       <a id="goToPaymentBtn" href="pay.html" class="underline text-terra hover:text-terra-dark font-medium">विद्यालय शुल्क भुगतान व छात्र सूची पोर्टल →</a>
     </div>
@@ -723,11 +733,27 @@ function errorMessage(e,fallback){
 }
 function digitsOnly(id,maxLength){
   var el=$(id);
+  if(!el) return;
+  el.addEventListener('paste',function(e){
+    var paste=(e.clipboardData||window.clipboardData||{}).getData?e.clipboardData.getData('text'):'';
+    if(maxLength===10 && paste){
+      var num=paste.replace(/\s+/g,'').replace(/^[+]?(91|0)(?=[6-9][0-9]{9}$)/,'').replace(/[^0-9]/g,'');
+      if(num.length===10 && /^[6-9][0-9]{9}$/.test(num)){
+        e.preventDefault();
+        this.value=num;
+        this.dispatchEvent(new Event('input'));
+      }
+    }
+  });
   el.addEventListener('beforeinput',function(e){
     if(e.data && /[^0-9]/.test(e.data)) e.preventDefault();
   });
   el.addEventListener('input',function(){
-    var cleaned=this.value.replace(/[^0-9]/g,'').slice(0,maxLength);
+    var val=this.value.replace(/[^0-9]/g,'');
+    if(maxLength===10 && val.length>10){
+      val=val.replace(/^[+]?(91|0)(?=[6-9][0-9]{9}$)/,'');
+    }
+    var cleaned=val.slice(0,maxLength);
     if(this.value!==cleaned) this.value=cleaned;
     this.classList.remove('err');
   });
@@ -940,7 +966,7 @@ $('submitBtn').addEventListener('click',function(){
     district:$('district').value, block:blockEl.value.trim(),
     school:$('school').value.trim(),
     village:$('village').value.trim(),
-    mobile:$('mobile').value.trim(),
+    mobile:$('mobile').value.replace(/\s+/g,'').replace(/^[+]?(91|0)(?=[6-9][0-9]{9}$)/,'').trim(),
     declare:$('declare').checked,
     hp:$('website').value
   };

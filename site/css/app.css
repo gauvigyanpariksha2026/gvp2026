@@ -2011,7 +2011,10 @@ body main.rounded-b-2xl > #payForm { background: linear-gradient(145deg, #eaf7ed
   body.print-confirmation #printConfirmBtn,
   body.print-confirmation #printConfirmBtn + p,
   body.print-confirmation #printPayConfirmBtn,
-  body.print-confirmation #printPayConfirmBtn + p { display: none !important; }
+  body.print-confirmation #printPayConfirmBtn + p,
+  body.print-confirmation #goToPaymentBtn,
+  body.print-confirmation .print-hide,
+  .print-hide { display: none !important; }
 }
 
 /* Unified form color system: warm paper surfaces, terracotta action color,
