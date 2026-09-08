@@ -42,6 +42,10 @@ var GVP_API = (function () {
       return Promise.reject(new Error('ब्राउज़र नेटवर्क अनुरोध का समर्थन नहीं करता / This browser does not support network requests'));
     }
 
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return Promise.reject(new Error('आप वर्तमान में ऑफ़लाइन हैं। कृपया अपना इंटरनेट कनेक्शन जांचें / You are currently offline. Please check your internet connection.'));
+    }
+
     var isGet = !options || !options.method || options.method === 'GET';
     if (retriesLeft === undefined) {
       retriesLeft = isGet ? 1 : 0;
@@ -66,6 +70,9 @@ var GVP_API = (function () {
       })
       .then(cleanup_, function (err) {
         cleanup_();
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          throw new Error('आप वर्तमान में ऑफ़लाइन हैं। कृपया अपना इंटरनेट कनेक्शन जांचें / You are currently offline. Please check your internet connection.');
+        }
         if (isGet && retriesLeft > 0) {
           return new Promise(function (resolve) {
             setTimeout(resolve, 800);
@@ -75,6 +82,9 @@ var GVP_API = (function () {
         }
         if (err && err.name === 'AbortError') {
           throw new Error('नेटवर्क समय समाप्त (Request timed out). कृपया अपना इंटरनेट कनेक्शन जांचें और पुनः प्रयास करें।');
+        }
+        if (err && (err.name === 'TypeError' || /failed to fetch|networkerror|load failed/i.test(String(err.message || '')))) {
+          throw new Error('नेटवर्क त्रुटि (Network error). कृपया अपना इंटरनेट कनेक्शन जांचें और पुनः प्रयास करें।');
         }
         throw err;
       });

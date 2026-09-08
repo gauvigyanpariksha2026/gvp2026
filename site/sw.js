@@ -2,19 +2,18 @@
  * Gau Vigyan Pariksha 2026 — Service Worker
  * Provides offline caching for static app shell assets and network resilience.
  */
-var CACHE_NAME = 'gvp-2026-v1';
+var CACHE_NAME = 'gvp-2026-v2';
 var STATIC_ASSETS = [
   './',
   'index.html',
   'pay.html',
   'manifest.json',
   'css/app.css',
+  'js/locations.js',
   'js/api.js',
   'js/pdf-report.js',
   'img/firefly-1.jpg',
-  'img/event-poster.jpeg',
-  'img/icon-192.png',
-  'img/icon-512.png'
+  'img/event-poster.jpeg'
 ];
 
 self.addEventListener('install', function (event) {
@@ -52,10 +51,10 @@ self.addEventListener('fetch', function (event) {
     return;
   }
 
-  // Stale-while-revalidate for local static assets
+  // Stale-while-revalidate for local static assets (ignore query strings like ?v=20260907)
   event.respondWith(
     caches.open(CACHE_NAME).then(function (cache) {
-      return cache.match(request).then(function (cachedResponse) {
+      return cache.match(request, { ignoreSearch: true }).then(function (cachedResponse) {
         var fetchPromise = fetch(request).then(function (networkResponse) {
           if (networkResponse && networkResponse.status === 200) {
             cache.put(request, networkResponse.clone());

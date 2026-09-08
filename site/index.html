@@ -16,8 +16,44 @@
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="गौ विज्ञान परीक्षा 2026–27">
 <meta name="twitter:description" content="गौ विज्ञान परीक्षा 2026–27 — विद्यार्थी पंजीकरण">
-<meta name="twitter:image" content="img/firefly-1.jpg">
 <title>गौ विज्ञान परीक्षा — पंजीकरण</title>
+<link rel="canonical" href="./">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "./#website",
+      "name": "गौ विज्ञान परीक्षा 2026–27",
+      "url": "./",
+      "description": "गौ विज्ञान परीक्षा 2026–27 विद्यार्थी पंजीकरण एवं विद्यालय शुल्क पोर्टल",
+      "inLanguage": "hi-IN"
+    },
+    {
+      "@type": "EducationalEvent",
+      "@id": "./#event",
+      "name": "गौ विज्ञान अनुसंधान एवं सामान्य ज्ञान परीक्षा 2026–27",
+      "alternateName": "Gau Vigyan Pariksha 2026",
+      "description": "कक्षा 8 से 12 के विद्यार्थियों हेतु गौ विज्ञान अनुसंधान एवं सामान्य ज्ञान परीक्षा 2026–27 का ऑनलाइन पंजीकरण एवं सूचना पोर्टल।",
+      "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+      "eventStatus": "https://schema.org/EventScheduled",
+      "inLanguage": ["hi", "en"],
+      "audience": {
+        "@type": "EducationalAudience",
+        "educationalRole": "student"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "30",
+        "priceCurrency": "INR",
+        "availability": "https://schema.org/InStock",
+        "url": "pay.html"
+      }
+    }
+  ]
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@400;500;600&family=Cormorant+Garamond:wght@400;500;600&display=swap">
@@ -173,6 +209,10 @@ select.inp:disabled{
       <span class="pb-arrow">→</span>
     </a>
 
+    <div id="offlineBar" class="hidden mb-4 rounded-lg border border-gold/40 bg-sand/80 px-4 py-2.5 text-xs text-ink/80 flex items-center gap-2 font-medium">
+      <span aria-hidden="true">⚠️</span>
+      <span>आप वर्तमान में ऑफ़लाइन हैं। फॉर्म भर सकते हैं, लेकिन जमा करने हेतु इंटरनेट कनेक्शन आवश्यक है। / You are offline.</span>
+    </div>
     <div id="loadErr" class="hidden mb-6 rounded-lg border border-terra/40 bg-terra/10 px-4 py-3 text-sm"></div>
 
     <div class="form-progress" role="group" aria-label="पंजीकरण के पाँच चरण">
@@ -930,6 +970,12 @@ function createAutocomplete(inputEl,listEl){
       var d=document.createElement('div');
       d.className='ac-item'; d.setAttribute('role','option'); d.textContent=v;
       d.addEventListener('mouseenter',function(){ setActive(idx); });
+      // touchstart provides zero-latency selection on mobile touchscreens
+      // before virtual keyboard dismissal or blur can close the list.
+      d.addEventListener('touchstart',function(e){
+        e.preventDefault();
+        selectItem(v);
+      },{passive:false});
       // mousedown (not click) fires before the input's blur, so the value
       // is set before the dropdown gets closed by the blur handler below.
       d.addEventListener('mousedown',function(e){
@@ -1086,12 +1132,13 @@ $('submitBtn').addEventListener('click',function(){
   if(isSubmitting) return;
   clean(); hide($('formErr'));
   var data={
-    name:$('name').value.trim(), father:$('father').value.trim(),
+    name:$('name').value.trim().replace(/\s+/g,' '),
+    father:$('father').value.trim().replace(/\s+/g,' '),
     gender:(document.querySelector('input[name=gender]:checked')||{}).value||'',
     cls:$('cls').value, year:'2026',
     district:$('district').value, block:blockEl.value.trim(),
-    school:$('school').value.trim(),
-    village:$('village').value.trim(),
+    school:$('school').value.trim().replace(/\s+/g,' '),
+    village:$('village').value.trim().replace(/\s+/g,' '),
     mobile:$('mobile').value.replace(/\s+/g,'').replace(/^[+]?(91|0)(?=[6-9][0-9]{9}$)/,'').trim(),
     declare:$('declare').checked,
     hp:$('website').value
@@ -1132,15 +1179,20 @@ $('submitBtn').addEventListener('click',function(){
     return;
   }
 
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    show($('formErr'), 'आप वर्तमान में ऑफ़लाइन हैं। कृपया इंटरनेट कनेक्शन जांचें / You are currently offline. Please check your connection.');
+    return;
+  }
+
   isSubmitting = true;
   $('submitBtn').disabled=true; $('btnSpin').classList.remove('hidden');
   $('btnTxt').textContent='जमा हो रहा है…';
 
   GVP_API.post('submitRegistration',data).then(function(res){
       isSubmitting = false;
+      $('submitBtn').disabled=false; $('btnSpin').classList.add('hidden');
+      $('btnTxt').textContent='पंजीकरण जमा करें';
       if(!res||!res.ok){
-        $('submitBtn').disabled=false; $('btnSpin').classList.add('hidden');
-        $('btnTxt').textContent='पंजीकरण जमा करें';
         show($('formErr'),(res&&res.error)||'त्रुटि हुई, पुनः प्रयास करें'); return;
       }
       document.querySelector('main').classList.add('hidden');
@@ -1235,6 +1287,9 @@ $('registerAnotherBtn').addEventListener('click',function(){
   $('cls').value='';
   $('mobile').value='';
   $('declare').checked=false;
+  $('submitBtn').disabled=false;
+  $('btnSpin').classList.add('hidden');
+  $('btnTxt').textContent='पंजीकरण जमा करें';
   clean();
   hide($('formErr'));
   $('done').classList.add('hidden');
@@ -1242,6 +1297,13 @@ $('registerAnotherBtn').addEventListener('click',function(){
   document.querySelector('main').scrollIntoView({behavior:'smooth',block:'start'});
   setTimeout(function(){ $('name').focus(); }, 350);
   if(window.updateRegistrationProgress) window.updateRegistrationProgress();
+});
+
+$('mobile').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){
+    e.preventDefault();
+    $('submitBtn').click();
+  }
 });
 
 // Smart Phone Number Paste Cleaner
@@ -1283,6 +1345,19 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(function() {});
   });
 }
+
+function updateOnlineStatus() {
+  var bar = $('offlineBar');
+  if (!bar) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    bar.classList.remove('hidden');
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus();
 </script>
 </body>
 </html>

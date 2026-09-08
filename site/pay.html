@@ -16,8 +16,22 @@
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="गौ विज्ञान परीक्षा — विद्यालय पोर्टल">
 <meta name="twitter:description" content="विद्यालय सामूहिक शुल्क भुगतान व छात्र सूची PDF पोर्टल।">
-<meta name="twitter:image" content="img/firefly-1.jpg">
 <title>गौ विज्ञान परीक्षा — विद्यालय भुगतान</title>
+<link rel="canonical" href="pay.html">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "गौ विज्ञान परीक्षा — विद्यालय शुल्क भुगतान व छात्र सूची",
+  "description": "विद्यालय का सामूहिक परीक्षा शुल्क देखें, UPI भुगतान दर्ज करें और छात्र सूची PDF डाउनलोड करें।",
+  "inLanguage": "hi-IN",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "गौ विज्ञान परीक्षा 2026–27",
+    "url": "./"
+  }
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@400;500;600&family=Cormorant+Garamond:wght@400;500;600&family=Yatra+One&display=swap">
@@ -233,6 +247,10 @@ select.inp:disabled{
       </div>
     </div>
 
+    <div id="offlineBar" class="hidden mb-4 rounded-lg border border-gold/40 bg-sand/80 px-4 py-2.5 text-xs text-ink/80 flex items-center gap-2 font-medium">
+      <span aria-hidden="true">⚠️</span>
+      <span>आप वर्तमान में ऑफ़लाइन हैं। विवरण देख सकते हैं, लेकिन ऑनलाइन शुल्क जांच व भुगतान हेतु इंटरनेट आवश्यक है। / You are offline.</span>
+    </div>
     <div id="loadErr" class="hidden mb-6 rounded-lg border border-terra/40 bg-terra/10 px-4 py-3 text-sm"></div>
 
     <section class="payment-step payment-step-school">
@@ -463,6 +481,12 @@ digitsOnly('utr',24);
 digitsOnly('mobile',10);
 digitsOnly('payAmount',9);
 digitsOnly('studentsMobile',10);
+$('mobile').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){
+    e.preventDefault();
+    $('payBtn').click();
+  }
+});
 
 (function(){
   if(!apiReady()){
@@ -691,6 +715,12 @@ function createAutocomplete(inputEl,listEl){
       var d=document.createElement('div');
       d.className='ac-item'; d.setAttribute('role','option'); d.textContent=v;
       d.addEventListener('mouseenter',function(){ setActive(idx); });
+      // touchstart provides zero-latency selection on mobile touchscreens
+      // before virtual keyboard dismissal or blur can close the list.
+      d.addEventListener('touchstart',function(e){
+        e.preventDefault();
+        selectItem(v);
+      },{passive:false});
       // mousedown (not click) fires before the input's blur, so the value
       // is set before the dropdown gets closed by the blur handler below.
       d.addEventListener('mousedown',function(e){
@@ -816,6 +846,7 @@ $('payeeName').addEventListener('input',function(){
 var LAST_BILL=null;
 var LAST_BILL_KEY='';
 var LAST_BILL_LOOKUP_SCHOOL='';
+var LAST_BILL_LOOKUP_VILLAGE='';
 var LAST_BILL_FIELDS=null;
 var LAST_STUDENTS=[];
 var BILL_REQUEST_ID=0;
@@ -841,6 +872,7 @@ function hideBill(){
   LAST_BILL=null;
   LAST_BILL_KEY='';
   LAST_BILL_LOOKUP_SCHOOL='';
+  LAST_BILL_LOOKUP_VILLAGE='';
   LAST_BILL_FIELDS=null;
   LAST_STUDENTS=[];
   hide($('billBox')); hide($('payForm')); hide($('billErr')); hide($('done'));
@@ -853,6 +885,11 @@ function hideBill(){
   $('studentsList').innerHTML=''; $('studentsMobile').value='';
   $('billBtn').disabled=false; $('billSpin').classList.add('hidden');
   $('billTxt').textContent='See amount / राशि देखें';
+  if($('payBtn')){
+    $('payBtn').disabled=false;
+    if($('paySpin')) $('paySpin').classList.add('hidden');
+    $('payTxt').textContent='I have paid / मैंने भुगतान कर दिया';
+  }
   setPayFlow(1);
 }
 
@@ -875,11 +912,22 @@ function updateSchoolStatusBadge(){
     var desc=sf.school+(sf.village?', '+sf.village:'')+' ('+sf.district+')';
     badge.className='mb-3 text-xs rounded-lg border px-3 py-2 flex items-center gap-2 border-leaf/40 bg-leaf/10 text-leaf-deep font-medium';
     icon.textContent='🏫';
-    text.innerHTML='चयनित विद्यालय: <strong>'+desc+'</strong> <span class="ml-1 text-[11px] text-leaf">✓ सक्रिय</span>';
+    text.textContent='चयनित विद्यालय: ';
+    var strong=document.createElement('strong');
+    strong.textContent=desc;
+    var span=document.createElement('span');
+    span.className='ml-1 text-[11px] text-leaf';
+    span.textContent='✓ सक्रिय';
+    text.appendChild(strong);
+    text.appendChild(document.createTextNode(' '));
+    text.appendChild(span);
   } else {
     badge.className='mb-3 text-xs rounded-lg border px-3 py-2 flex items-center gap-2 border-gold/30 bg-gold/10 text-ink/80';
     icon.textContent='ℹ️';
-    text.innerHTML='छात्र सूची देखने के लिए कृपया <strong>नीचे दिए फॉर्म से पहले अपना विद्यालय चुनें</strong>';
+    text.textContent='छात्र सूची देखने के लिए कृपया ';
+    var strongPrompt=document.createElement('strong');
+    strongPrompt.textContent='नीचे दिए फॉर्म से पहले अपना विद्यालय चुनें';
+    text.appendChild(strongPrompt);
   }
 }
 ['district','block','school','village'].forEach(function(id){
@@ -932,6 +980,11 @@ $('billBtn').addEventListener('click',function(){
 
   if(!apiReady()){
     fail('सर्वर से जुड़ाव सेट नहीं है / API_URL is not configured in js/api.js — see README.md.');
+    return;
+  }
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    fail('आप वर्तमान में ऑफ़लाइन हैं। कृपया इंटरनेट कनेक्शन जांचें / You are currently offline. Please check your connection.');
     return;
   }
 
@@ -1137,6 +1190,13 @@ function loadStudentsList(){
   var requestId=++STUDENTS_REQUEST_ID;
   LAST_STUDENTS=[];
   hide($('studentsDownloadWrap'));
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    listEl.textContent='आप वर्तमान में ऑफ़लाइन हैं। कृपया इंटरनेट कनेक्शन जांचें / You are currently offline. Please check your connection.';
+    show(listEl);
+    return;
+  }
+
   listEl.innerHTML='<span class="inline-flex items-center gap-2 py-1"><svg class="animate-spin h-4 w-4 text-terra" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg> <span>विद्यार्थी सूची लोड हो रही है… / Loading student list…</span></span>';
   show(listEl);
   var params={district:lookup.district,block:lookup.block,school:lookup.school,village:lookup.village,mobile:mobile};
@@ -1237,7 +1297,7 @@ $('payBtn').addEventListener('click',function(){
     show($('formErr'),'School details changed. Please check the amount again.');
     return;
   }
-  var payeeName=$('payeeName').value.trim();
+  var payeeName=$('payeeName').value.trim().replace(/\s+/g,' ');
   var utr=$('utr').value.replace(/\s+/g,'').trim();
   var mobile=$('mobile').value.replace(/\s+/g,'').replace(/^[+]?(91|0)(?=[6-9][0-9]{9}$)/,'').trim();
   $('mobile').value=mobile;
@@ -1251,6 +1311,11 @@ $('payBtn').addEventListener('click',function(){
   if(!/^[6-9][0-9]{9}$/.test(mobile)){bad($('mobile'));shakeField($('mobile'));show($('formErr'),'मोबाइल नंबर सही नहीं है / Enter a 10-digit mobile');return;}
   if(!apiReady()){
     show($('formErr'),'सर्वर से जुड़ाव सेट नहीं है / API_URL is not configured in js/api.js — see README.md.');
+    return;
+  }
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    show($('formErr'), 'आप वर्तमान में ऑफ़लाइन हैं। कृपया इंटरनेट कनेक्शन जांचें / You are currently offline. Please check your connection.');
     return;
   }
 
@@ -1559,6 +1624,19 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(function() {});
   });
 }
+
+function updateOnlineStatus() {
+  var bar = $('offlineBar');
+  if (!bar) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    bar.classList.remove('hidden');
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus();
 </script>
 </body>
 </html>

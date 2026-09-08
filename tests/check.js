@@ -139,6 +139,16 @@ assert.equal(context.locMatch_('JAVAD', 'JAWADA'), true);
 assert.equal(context.locMatch_('JAWADA', 'JAWAJA'), false);
 assert.equal(context.locMatch_('JAWADA', 'JODHPUR'), false);
 
+// Case-insensitive and transliteration tolerance in validLocation_ and getBlocks:
+assert.equal(context.validLocation_('banswara', 'ghatol'), '');
+assert.equal(context.validLocation_('BANSWARA', 'GHATOL'), '');
+assert.equal(context.validLocation_('Banswara', 'Ghatol'), '');
+assert.equal(context.validLocation_('unknown', 'ghatol'), 'जिला सही नहीं है / Select a valid district');
+assert.equal(context.validLocation_('banswara', 'unknown'), 'ब्लॉक सही नहीं है / Select a valid block');
+assert.deepEqual(context.getBlocks('banswara'), context.getBlocks('Banswara'));
+assert.deepEqual(context.getBlocks('BANSWARA'), context.getBlocks('Banswara'));
+assert.equal(context.getBlocks('unknown').length, 0);
+
 const jawadaSchoolKey = context.schoolNormalizeKey_('GSSS JAVADA');
 assert.equal(context.schoolNormalizeKey_('GSSS JAWADA'), jawadaSchoolKey);
 assert.equal(context.schoolNormalizeKey_('G.S.S.S. JAWADA'), jawadaSchoolKey);
@@ -209,7 +219,11 @@ for (const relative of ['site/index.html', 'site/pay.html']) {
   const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
   for (const [, attrs, source] of scripts) {
     if (!/\bsrc\s*=/.test(attrs) && source.trim()) {
-      new Function(source); // Syntax check each inline script.
+      if (/type=["']application\/ld\+json["']/i.test(attrs)) {
+        JSON.parse(source); // Syntax check JSON-LD scripts.
+      } else {
+        new Function(source); // Syntax check each inline JS script.
+      }
     }
   }
 
@@ -222,13 +236,78 @@ for (const relative of ['site/index.html', 'site/pay.html']) {
 for (const file of fs.readdirSync(path.join(root, 'site', 'js')).filter((name) => name.endsWith('.js'))) {
   new Function(fs.readFileSync(path.join(root, 'site', 'js', file), 'utf8'));
 }
+
+// Verify that site/js/locations.js matches apps-script/Code.gs DISTRICT_BLOCKS exactly
+const locCode = fs.readFileSync(path.join(root, 'site', 'js', 'locations.js'), 'utf8');
+const locContext = vm.createContext({});
+vm.runInContext(locCode, locContext);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(locContext.GVP_LOCATIONS)),
+  JSON.parse(JSON.stringify(context.DISTRICT_BLOCKS)),
+  'site/js/locations.js GVP_LOCATIONS must match apps-script/Code.gs DISTRICT_BLOCKS'
+);
 if (fs.existsSync(path.join(root, 'site', 'sw.js'))) {
-  new Function(fs.readFileSync(path.join(root, 'site', 'sw.js'), 'utf8'));
+  const swCode = fs.readFileSync(path.join(root, 'site', 'sw.js'), 'utf8');
+  new Function(swCode);
+  const assetsMatch = swCode.match(/var STATIC_ASSETS\s*=\s*\[([\s\S]*?)\];/);
+  assert.ok(assetsMatch, 'STATIC_ASSETS not found in site/sw.js');
+  const staticAssets = new Function(`return [${assetsMatch[1]}];`)();
+  for (const asset of staticAssets) {
+    if (asset === './') continue;
+    const resolved = path.join(root, 'site', asset);
+    assert.ok(fs.existsSync(resolved), `site/sw.js STATIC_ASSETS references missing file: ${asset}`);
+  }
 }
+
+// Verify that site/manifest.json is valid JSON and referenced icons exist
+const manifestPath = path.join(root, 'site', 'manifest.json');
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+assert.ok(manifest.name && manifest.start_url, 'site/manifest.json must have name and start_url');
+(manifest.icons || []).forEach((icon) => {
+  const iconPath = path.join(root, 'site', icon.src);
+  assert.ok(fs.existsSync(iconPath), `Manifest icon not found on disk: ${icon.src}`);
+});
+
+// Verify that LAST_BILL_LOOKUP_VILLAGE is properly declared in site/pay.html
+const payHtmlContent = fs.readFileSync(path.join(root, 'site', 'pay.html'), 'utf8');
+assert.match(payHtmlContent, /var\s+LAST_BILL_LOOKUP_VILLAGE\s*=/, 'LAST_BILL_LOOKUP_VILLAGE must be explicitly declared with var in site/pay.html');
+assert.doesNotMatch(payHtmlContent, /text\.innerHTML\s*=\s*['"]चयनित विद्यालय:/, 'updateSchoolStatusBadge must not use innerHTML to interpolate school/village text');
+
+// Verify offline detection and banner presence in site/index.html, site/pay.html, and site/js/api.js
+const apiJsContent = fs.readFileSync(path.join(root, 'site', 'js', 'api.js'), 'utf8');
+assert.match(payHtmlContent, /id=["']offlineBar["']/, 'site/pay.html must include offlineBar banner');
+assert.match(payHtmlContent, /window\.addEventListener\(['"]offline['"]/, 'site/pay.html must listen for offline event');
+assert.match(apiJsContent, /navigator\.onLine\s*===\s*false/, 'site/js/api.js must check navigator.onLine');
+
+// Verify that registerAnotherBtn in site/index.html properly re-enables submitBtn
+const indexHtmlContent = fs.readFileSync(path.join(root, 'site', 'index.html'), 'utf8');
+assert.match(indexHtmlContent, /id=["']offlineBar["']/, 'site/index.html must include offlineBar banner');
+assert.match(indexHtmlContent, /window\.addEventListener\(['"]offline['"]/, 'site/index.html must listen for offline event');
+
+// Verify canonical link and Schema.org JSON-LD structured data in index.html and pay.html
+assert.match(indexHtmlContent, /<link\s+rel=["']canonical["']\s+href=["']\.\/["']/, 'site/index.html must have canonical link');
+assert.match(payHtmlContent, /<link\s+rel=["']canonical["']\s+href=["']pay\.html["']/, 'site/pay.html must have canonical link');
+
+const indexJsonLdMatch = indexHtmlContent.match(/<script type=["']application\/ld\+json["']>([\s\S]*?)<\/script>/);
+assert.ok(indexJsonLdMatch, 'site/index.html must contain JSON-LD script');
+const indexJsonLd = JSON.parse(indexJsonLdMatch[1]);
+assert.equal(indexJsonLd['@context'], 'https://schema.org');
+assert.ok(Array.isArray(indexJsonLd['@graph']), 'site/index.html JSON-LD must contain @graph array');
+
+const payJsonLdMatch = payHtmlContent.match(/<script type=["']application\/ld\+json["']>([\s\S]*?)<\/script>/);
+assert.ok(payJsonLdMatch, 'site/pay.html must contain JSON-LD script');
+const payJsonLd = JSON.parse(payJsonLdMatch[1]);
+assert.equal(payJsonLd['@context'], 'https://schema.org');
+assert.equal(payJsonLd['@type'], 'WebPage');
+const regAnotherBlock = indexHtmlContent.substring(
+  indexHtmlContent.indexOf("$('registerAnotherBtn').addEventListener"),
+  indexHtmlContent.indexOf('// Smart Phone Number Paste Cleaner')
+);
+assert.ok(regAnotherBlock.includes("$('submitBtn').disabled=false;"), 'registerAnotherBtn must re-enable submitBtn');
+assert.ok(regAnotherBlock.includes("$('btnSpin').classList.add('hidden');"), 'registerAnotherBtn must hide btnSpin');
 
 // Verify that the OCR UTR auto-extraction logic in site/pay.html correctly parses
 // PhonePe, Google Pay, Paytm, BHIM and OCR O/0 transliteration variations.
-const payHtmlContent = fs.readFileSync(path.join(root, 'site', 'pay.html'), 'utf8');
 const fnMatch = payHtmlContent.match(/function extractUtr\(rawText\)[\s\S]*?return null;\s*\n  \}/);
 const cleanFnMatch = payHtmlContent.match(/function cleanOcrText\(text\)[\s\S]*?return text[\s\S]*?\n  \}/);
 assert.ok(fnMatch && cleanFnMatch, 'extractUtr or cleanOcrText missing in site/pay.html');
@@ -299,7 +378,8 @@ for (const file of ['site/pay.html', 'site/index.html']) {
   assert.equal(listHidden, false, `Dropdown should open on typing in ${file}`);
   assert.equal(listChildren.length, 2);
 
-  // Click on first item
+  // Click or tap on first item
+  assert.equal(typeof listChildren[0].ontouchstart, 'function', `Dropdown items must attach touchstart listener in ${file}`);
   listChildren[0].onmousedown({ preventDefault() {} });
   assert.equal(listHidden, true, `Dropdown must be closed immediately after selection in ${file}`);
   assert.equal(inputVal, 'GSSS KOTRI');

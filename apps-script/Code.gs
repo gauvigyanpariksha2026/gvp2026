@@ -169,18 +169,34 @@ function getLocations() {
   return DISTRICT_BLOCKS;
 }
 
+function getCanonicalDistrict_(district) {
+  var candidate = String(district || '').trim();
+  if (!candidate) return '';
+  if (DISTRICT_BLOCKS[candidate]) return candidate;
+  var districts = Object.keys(DISTRICT_BLOCKS);
+  for (var i = 0; i < districts.length; i++) {
+    if (locMatch_(districts[i], candidate)) return districts[i];
+  }
+  return '';
+}
+
+function getCanonicalBlock_(canonicalDistrict, block) {
+  var candidate = String(block || '').trim();
+  if (!canonicalDistrict || !candidate) return '';
+  var blocks = DISTRICT_BLOCKS[canonicalDistrict] || [];
+  for (var i = 0; i < blocks.length; i++) {
+    if (blocks[i] === candidate || locMatch_(blocks[i], candidate)) return blocks[i];
+  }
+  return '';
+}
+
 function getBlocks(district) {
-  return DISTRICT_BLOCKS[district] || [];
+  var canonical = getCanonicalDistrict_(district);
+  return canonical ? (DISTRICT_BLOCKS[canonical] || []) : [];
 }
 
 function isKnownDistrict_(value) {
-  var candidate = String(value || '').trim();
-  if (!candidate) return false;
-  var districts = Object.keys(DISTRICT_BLOCKS);
-  for (var i = 0; i < districts.length; i++) {
-    if (locMatch_(candidate, districts[i])) return true;
-  }
-  return false;
+  return !!getCanonicalDistrict_(value);
 }
 
 function compactKey_(s) {
@@ -381,11 +397,12 @@ function isFakeMobile_(mobile) {
 function validLocation_(district, block) {
   district = String(district || '').trim();
   block = String(block || '').trim();
-  if (!district || !DISTRICT_BLOCKS[district]) {
+  var cd = getCanonicalDistrict_(district);
+  if (!cd) {
     return 'जिला सही नहीं है / Select a valid district';
   }
-  var blocks = DISTRICT_BLOCKS[district] || [];
-  if (!block || blocks.indexOf(block) === -1) {
+  var cb = getCanonicalBlock_(cd, block);
+  if (!cb) {
     return 'ब्लॉक सही नहीं है / Select a valid block';
   }
   return '';

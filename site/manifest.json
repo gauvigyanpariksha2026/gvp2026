@@ -2,6 +2,7 @@
   "name": "गौ विज्ञान परीक्षा 2026",
   "short_name": "GVP 2026",
   "description": "गौ विज्ञान परीक्षा 2026 विद्यार्थी पंजीकरण एवं विद्यालय शुल्क पोर्टल",
+  "lang": "hi",
   "start_url": "index.html",
   "scope": "./",
   "display": "standalone",
@@ -12,7 +13,7 @@
       "src": "img/firefly-1.jpg",
       "sizes": "192x192 512x512",
       "type": "image/jpeg",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
   ]
 }
