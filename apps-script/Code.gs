@@ -46,14 +46,9 @@ var REG_STATUS_COLUMN_ = 20;
 var REG_STATUS_HEADER_ = 'Registration Status';
 var REG_GLOBAL_WINDOW_SEC_ = 600;
 var REG_GLOBAL_WINDOW_MAX_ = 100;
-var APPROVED_STUDENTS_SHEET_ = 'Approved Students';
-var APPROVED_STUDENTS_HEADERS_ = [
-  'Name', 'Father', 'Gender', 'Class', 'District',
-  'Block', 'School', 'Village', 'Mobile', 'Year'
-];
 var PAY_HEADERS_ = ['District', 'Block', 'School', 'Students', 'Amount Due', 'Amount Paid', 'Status', 'Payer Name', 'UTR', 'Payer Mobile', 'Reported At', 'Books', 'Village'];
 var DUES_HEADERS_ = ['District', 'Block', 'School', 'Students', 'Amount', 'Paid', 'Balance', 'Status', 'Books', 'Village'];
-var UTILITY_SHEETS_ = { 'Payments': true, 'School Dues': true, 'Errors': true, 'Approved Students': true };
+var UTILITY_SHEETS_ = { 'Payments': true, 'School Dues': true, 'Errors': true };
 
 function getSpreadsheet_() {
   // A bound project should not fail merely because an old copied ID remains here.
@@ -634,53 +629,6 @@ function registrationVerified_(status) {
   return !value || value === 'verified' || value === 'approved';
 }
 
-function approvedStudentValue_(value) {
-  return String(value || '').trim().replace(/\s+/g, ' ').toUpperCase();
-}
-
-function approvedStudentMatch_(ss, data) {
-  // This sheet is controlled by the organizer. Public input can only be
-  // compared with it; it cannot select the sheet or supply an approval flag.
-  var approved = ss.getSheetByName(APPROVED_STUDENTS_SHEET_);
-  if (!approved || approved.getLastRow() < 2) return false;
-  var values = approved.getRange(1, 1, approved.getLastRow(), APPROVED_STUDENTS_HEADERS_.length).getValues();
-  var headers = values[0];
-  for (var h = 0; h < APPROVED_STUDENTS_HEADERS_.length; h++) {
-    if (String(headers[h] || '').trim() !== APPROVED_STUDENTS_HEADERS_[h]) return false;
-  }
-  var candidate = [
-    data.name, data.father, data.gender, data.cls, data.district,
-    data.block, data.school, data.village, data.mobile, data.year
-  ].map(approvedStudentValue_);
-  for (var i = 1; i < values.length; i++) {
-    var matched = true;
-    for (var j = 0; j < candidate.length; j++) {
-      if (approvedStudentValue_(values[i][j]) !== candidate[j]) {
-        matched = false;
-        break;
-      }
-    }
-    if (matched) return true;
-  }
-  return false;
-}
-
-/** Admin: create the trusted roster sheet once, then paste approved rows below its header. */
-function setupApprovedStudentsSheet() {
-  var ss = getSpreadsheet_();
-  var sheet = ss.getSheetByName(APPROVED_STUDENTS_SHEET_);
-  if (!sheet) sheet = ss.insertSheet(APPROVED_STUDENTS_SHEET_);
-  var current = sheet.getRange(1, 1, 1, APPROVED_STUDENTS_HEADERS_.length).getValues()[0];
-  var occupied = current.some(function (value) { return String(value || '').trim() !== ''; });
-  var valid = APPROVED_STUDENTS_HEADERS_.every(function (header, index) {
-    return String(current[index] || '').trim() === header;
-  });
-  if (occupied && !valid) throw new Error('Approved Students row 1 is already in use. Move that data before setup.');
-  if (!valid) sheet.getRange(1, 1, 1, APPROVED_STUDENTS_HEADERS_.length).setValues([APPROVED_STUDENTS_HEADERS_]);
-  sheet.setFrozenRows(1);
-  return { ok: true, sheet: APPROVED_STUDENTS_SHEET_ };
-}
-
 function registrationWriteAllowed_(data) {
   // This helper runs under the script lock. The property-backed global bucket
   // provides a hard bound even if attacker-controlled cache keys are rotated.
@@ -875,7 +823,7 @@ function submitRegistration(data) {
       if (!registrationWriteAllowed_(data)) {
         return { ok: false, error: 'बहुत अधिक पंजीकरण प्रयास हुए हैं। कृपया बाद में पुनः प्रयास करें / Too many registration attempts. Please try again later.' };
       }
-      var initialStatus = approvedStudentMatch_(ss, data) ? 'Verified' : 'Pending';
+      var initialStatus = 'Pending';
       var nextNum = nextRegSerial_(sheet);
       var regNo = 'GVP-2026-' + ('00000' + nextNum).slice(-5);
       var omrNo = omrFromSerial_(nextNum);

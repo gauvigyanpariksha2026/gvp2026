@@ -151,41 +151,13 @@ const damagedStatusSheet = {
   getLastRow: () => 2
 };
 assert.deepEqual(JSON.parse(JSON.stringify(context.registrationStatuses_(damagedStatusSheet, 1))), [['Invalid']]);
-
-// Auto-verification uses a strict organizer-controlled roster. Cosmetic case
-// and whitespace normalize, but fuzzy school/location variants never approve.
-const approvedHeaders = [
-  'Name', 'Father', 'Gender', 'Class', 'District',
-  'Block', 'School', 'Village', 'Mobile', 'Year'
-];
-const approvedRow = [
-  ' Alice  Smith ', 'Father Smith', 'Female', '10', 'Banswara',
-  'Ghatol', 'GSSS Test', 'Test Village', '9876501234', '2026'
-];
-const approvedSheet = {
-  getLastRow: () => 2,
-  getRange: () => ({ getValues: () => [approvedHeaders, approvedRow] })
-};
-const approvedSs = { getSheetByName: (name) => name === 'Approved Students' ? approvedSheet : null };
-const approvedData = {
-  name: 'alice smith', father: 'father smith', gender: 'Female', cls: '10',
-  district: 'Banswara', block: 'Ghatol', school: 'GSSS TEST',
-  village: 'Test   Village', mobile: '9876501234', year: '2026'
-};
-assert.equal(context.approvedStudentMatch_(approvedSs, approvedData), true);
-assert.equal(context.approvedStudentMatch_(approvedSs, { ...approvedData, school: 'Govt Sr Sec School Test' }), false);
-assert.equal(context.approvedStudentMatch_(approvedSs, { ...approvedData, mobile: '9876501235', status: 'Verified' }), false);
-assert.equal(context.approvedStudentMatch_({ getSheetByName: () => null }, approvedData), false);
-const malformedApprovedSheet = {
-  getLastRow: () => 2,
-  getRange: () => ({ getValues: () => [['Student Name', ...approvedHeaders.slice(1)], approvedRow] })
-};
-assert.equal(context.approvedStudentMatch_({ getSheetByName: () => malformedApprovedSheet }, approvedData), false);
-assert.equal(context.UTILITY_SHEETS_['Approved Students'], true);
+assert.equal(context.UTILITY_SHEETS_['Payments'], true);
+assert.equal(context.UTILITY_SHEETS_['School Dues'], true);
+assert.equal(context.UTILITY_SHEETS_['Errors'], true);
 const insertedRegistrationSheet = { marker: 'new registration sheet' };
 assert.equal(originalGetRegistrationSheet({
   getSheetByName: () => null,
-  getSheets: () => [{ getName: () => 'Approved Students' }],
+  getSheets: () => [{ getName: () => 'Payments' }],
   insertSheet: (name) => {
     assert.equal(name, 'Registrations');
     return insertedRegistrationSheet;
