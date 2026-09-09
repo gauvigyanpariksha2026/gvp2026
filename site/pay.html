@@ -613,15 +613,29 @@ blockEl.addEventListener('change',function(){
 });
 
 function translitNorm(s){
-  var k = String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  var raw = String(s || '').toLowerCase()
+    .replace(/([a-z])(iii|ii|iv)\b/g, '$1 $2')
+    .replace(/\biv\b/g, '4')
+    .replace(/\biii\b/g, '3')
+    .replace(/\bii\b/g, '2')
+    .replace(/\bi\b/g, '1');
+  var k = raw.replace(/[^a-z0-9]/g, '');
   if (!k) return '';
+  k = k.replace(/chh/g, 'ch')
+       .replace(/ph/g, 'f')
+       .replace(/th/g, 't')
+       .replace(/dh/g, 'd')
+       .replace(/bh/g, 'b')
+       .replace(/kh/g, 'k')
+       .replace(/gh/g, 'g');
   k = k.replace(/w/g, 'v');
   k = k.replace(/aa+/g, 'a')
        .replace(/ee+/g, 'i')
        .replace(/oo+/g, 'u')
        .replace(/ii+/g, 'i')
        .replace(/uu+/g, 'u');
-  k = k.replace(/ja*va*d[ah]*/g, 'javada');
+  k = k.replace(/([bcdfghjklmnpqrstvwxyz])a(?=[bcdfghjklmnpqrstvwxyz])/g, '$1')
+       .replace(/a$/, '');
   return k;
 }
 

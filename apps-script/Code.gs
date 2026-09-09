@@ -221,20 +221,48 @@ function compactKey_(s) {
 /**
  * Phonetic/transliteration normalization for Indian English location and school names.
  * Equates W and V (Hindi 'व' transliteration), collapses doubled vowels (aa->a, ee->i, oo->u),
- * and maps phonetic variants of places like Jawada (Jawada/Javada/Jawda/Javda/Jawad/Javad)
- * to a canonical key so spelling drift across sessions does not break billing or student lookup.
+ * and removes an optional unstressed "a" between consonants. This gives a
+ * common transliteration key for any place or school name (for example,
+ * Kothariya/Kothriya and Jawada/Javda), rather than maintaining a list of
+ * place-specific spelling exceptions.
  */
 function phoneticKey_(s) {
   var k = compactKey_(s);
   if (!k) return '';
+  k = k.replace(/chh/g, 'ch')
+       .replace(/ph/g, 'f')
+       .replace(/th/g, 't')
+       .replace(/dh/g, 'd')
+       .replace(/bh/g, 'b')
+       .replace(/kh/g, 'k')
+       .replace(/gh/g, 'g');
   k = k.replace(/w/g, 'v');
   k = k.replace(/aa+/g, 'a')
        .replace(/ee+/g, 'i')
        .replace(/oo+/g, 'u')
        .replace(/ii+/g, 'i')
        .replace(/uu+/g, 'u');
-  k = k.replace(/ja*va*d[ah]*/g, 'javada');
+  // Hindi transliterations often include or omit a short "a" (schwa) in
+  // the middle of a word. Apply the same rule to every name, then ignore a
+  // final trailing "a" so Jawad/Jawada and Kothriya/Kothariya stay together.
+  k = k.replace(/([bcdfghjklmnpqrstvwxyz])a(?=[bcdfghjklmnpqrstvwxyz])/g, '$1')
+       .replace(/a$/, '');
   return k;
+}
+
+// Location labels frequently include a village/ward number. Treat a separated
+// Arabic number and its Roman-numeral form as the same suffix, while keeping
+// different numbers distinct: "Jawada 2", "Javada II", "JawadaII" and "Javda-2" match;
+// "Jawada 1" does not. This is used only for location comparison, never for
+// approval-roster matching or changing the spelling stored in a sheet.
+function locationKey_(s) {
+  var raw = String(s || '').toLowerCase()
+    .replace(/([a-z])(iii|ii|iv)\b/g, '$1 $2')
+    .replace(/\biv\b/g, '4')
+    .replace(/\biii\b/g, '3')
+    .replace(/\bii\b/g, '2')
+    .replace(/\bi\b/g, '1');
+  return phoneticKey_(raw);
 }
 
 function upper_(s) {
@@ -252,7 +280,7 @@ function locMatch_(sheetVal, selected) {
   if (compactKey_(s) && compactKey_(s) === compactKey_(sel)) return true;
   var slash = s.lastIndexOf('/');
   if (slash > -1 && s.substring(slash + 1).trim().toLowerCase() === sell) return true;
-  if (phoneticKey_(s) && phoneticKey_(s) === phoneticKey_(sel)) return true;
+  if (locationKey_(s) && locationKey_(s) === locationKey_(sel)) return true;
   return false;
 }
 
@@ -287,13 +315,30 @@ function villageSimilar_(a, b) {
   var ak = compactKey_(a), bk = compactKey_(b);
   if (!ak || !bk) return false;
   if (ak === bk) return true;
-  if (ak.indexOf(bk) > -1 || bk.indexOf(ak) > -1) return true;
-  var ap = phoneticKey_(a), bp = phoneticKey_(b);
+
+  var minLen = Math.min(ak.length, bk.length);
+  // Do not allow tiny substrings (< 4 chars) to match longer words (e.g. "Bor" inside "Boria" or "Pal" inside "Palasoda").
+  if (minLen >= 4 && (ak.indexOf(bk) > -1 || bk.indexOf(ak) > -1)) return true;
+
+  var ap = locationKey_(a), bp = locationKey_(b);
   if (ap && bp) {
-    if (ap === bp || ap.indexOf(bp) > -1 || bp.indexOf(ap) > -1) return true;
-    if (levenshtein_(ap, bp) <= 2) return true;
+    if (ap === bp) return true;
+    var minP = Math.min(ap.length, bp.length);
+    if (minP >= 4 && (ap.indexOf(bp) > -1 || bp.indexOf(ap) > -1)) return true;
+    // Length-gated Levenshtein:
+    // Short keys (< 4) must match exactly.
+    // Medium keys (4-6 chars) allow at most 1 typo.
+    // Long keys (7+ chars) allow up to 2 typos.
+    var d = levenshtein_(ap, bp);
+    if (minP >= 7 && d <= 2) return true;
+    if (minP >= 4 && d <= 1) return true;
   }
-  return levenshtein_(ak, bk) <= 2;
+
+  var dComp = levenshtein_(ak, bk);
+  if (minLen >= 7 && dComp <= 2) return true;
+  if (minLen >= 4 && dComp <= 1) return true;
+
+  return false;
 }
 
 // Whole-name abbreviations, expanded to the same words schoolNormalizeKey_
@@ -301,25 +346,66 @@ function villageSimilar_(a, b) {
 // "Govt Senior Secondary School Lasdawan" normalize to the same key. Place
 // names are never touched, so two different real schools that happen to
 // share this boilerplate still stay distinct. Only add entries here that
-// are unambiguous — DPS and the "G..." govt-school prefixes always expand
+// are unambiguous — DPS and govt-school prefixes always expand
 // to the same thing; a vaguer private-school initialism (which could stand
 // for several different actual school names) should not go in this table.
 var SCHOOL_ABBR_EXPAND_ = {
   gsss: ['govt', 'sr', 'sec', 'school'],
+  ggsss: ['govt', 'girls', 'sr', 'sec', 'school'],
+  gbsss: ['govt', 'boys', 'sr', 'sec', 'school'],
   gss: ['govt', 'sec', 'school'],
+  ggss: ['govt', 'girls', 'sec', 'school'],
+  gbss: ['govt', 'boys', 'sec', 'school'],
   gups: ['govt', 'up', 'pri', 'school'],
+  ggups: ['govt', 'girls', 'up', 'pri', 'school'],
+  gbups: ['govt', 'boys', 'up', 'pri', 'school'],
   gps: ['govt', 'pri', 'school'],
+  ggps: ['govt', 'girls', 'pri', 'school'],
+  gbps: ['govt', 'boys', 'pri', 'school'],
   gms: ['govt', 'mid', 'school'],
-  dps: ['delhi', 'public', 'school']
+  ggms: ['govt', 'girls', 'mid', 'school'],
+  ghss: ['govt', 'sr', 'sec', 'school'],
+  hss: ['sr', 'sec', 'school'],
+  mggs: ['mahatma', 'gandhi', 'govt', 'school'],
+  kgbv: ['kasturba', 'gandhi', 'girls', 'school'],
+  kv: ['kendriya', 'school'],
+  jnv: ['jawahar', 'navodaya', 'school'],
+  dps: ['delhi', 'public', 'school'],
+  pmshri: ['pm', 'shri'],
+  raumavi: ['govt', 'sr', 'sec', 'school'],
+  raumaavi: ['govt', 'sr', 'sec', 'school'],
+  rumv: ['govt', 'sr', 'sec', 'school'],
+  rumvi: ['govt', 'sr', 'sec', 'school'],
+  raubamavi: ['govt', 'girls', 'sr', 'sec', 'school'],
+  raubaumaavi: ['govt', 'girls', 'sr', 'sec', 'school'],
+  rbumv: ['govt', 'girls', 'sr', 'sec', 'school'],
+  ramavi: ['govt', 'sec', 'school'],
+  ramaavi: ['govt', 'sec', 'school'],
+  rmv: ['govt', 'sec', 'school'],
+  raupravi: ['govt', 'up', 'pri', 'school'],
+  raupraavi: ['govt', 'up', 'pri', 'school'],
+  rupv: ['govt', 'up', 'pri', 'school'],
+  rapravi: ['govt', 'pri', 'school'],
+  rapraavi: ['govt', 'pri', 'school'],
+  rpv: ['govt', 'pri', 'school'],
+  svgms: ['govt', 'model', 'school'],
+  svms: ['govt', 'model', 'school']
 };
 var SCHOOL_WORD_SYNONYMS_ = {
-  government: 'govt', govt: 'govt',
-  senior: 'sr', sr: 'sr', sen: 'sr',
+  government: 'govt', govt: 'govt', rajkiya: 'govt', rajkya: 'govt',
+  senior: 'sr', sr: 'sr', sen: 'sr', higher: 'sr', hr: 'sr',
   secondary: 'sec', sec: 'sec',
   primary: 'pri', pri: 'pri', prim: 'pri',
   upper: 'up', up: 'up',
   middle: 'mid', mid: 'mid',
-  school: 'school', vidyalaya: 'school', vidhyalaya: 'school'
+  school: 'school', vidyalaya: 'school', vidhyalaya: 'school',
+  vidyalay: 'school', vidhyalay: 'school', vidyapeeth: 'school', vidyapith: 'school',
+  girls: 'girls', girl: 'girls', balika: 'girls',
+  boys: 'boys', boy: 'boys', balak: 'boys',
+  uchh: 'sr', uchch: 'sr', uchcha: 'sr', uch: 'sr',
+  madhyamik: 'sec', madhyamika: 'sec', madhymik: 'sec',
+  prathmik: 'pri', prathamik: 'pri', praathmik: 'pri',
+  model: 'model'
 };
 
 // School-name-only matching key: expands known abbreviations and collapses
@@ -328,13 +414,32 @@ var SCHOOL_WORD_SYNONYMS_ = {
 // school match. Used only for the School field — district/block come from
 // a fixed dropdown and never need this.
 function schoolNormalizeKey_(s) {
-  var rawWords = String(s || '').toLowerCase().split(/[^a-z0-9]+/).filter(function (w) { return Boolean(w); });
+  // Normalize Roman numerals and numbers before word splitting so Roman numerals
+  // attached to place names ("JawadaII") or isolated in abbreviations ("G.S.S.S. I")
+  // are normalized to digits and never swallowed into single-letter acronym groups.
+  var sLower = String(s || '').toLowerCase()
+    .replace(/([a-z])(iii|ii|iv)\b/g, '$1 $2')
+    .replace(/\biv\b/g, '4')
+    .replace(/\biii\b/g, '3')
+    .replace(/\bii\b/g, '2')
+    .replace(/\bi\b/g, '1');
+
+  // A few spreadsheet rows concatenate "school" or "vidyalaya" and the place name (for
+  // example, "SCHOOLJAWADA-II" or "GSSSSCHOOL"). Restore missing boundaries before
+  // generic word-based normalization; this is not tied to any one place.
+  var rawWords = sLower
+    .replace(/([a-z])(school|vidyalaya|vidhyalaya|vidyalay|vidhyalay)/g, '$1 $2')
+    .replace(/(school|vidyalaya|vidhyalaya|vidyalay|vidhyalay)(?=[a-z])/g, '$1 ')
+    .split(/[^a-z0-9]+/).filter(function (w) { return Boolean(w); });
+
+  // Group consecutive single alphabet letters into an acronym (e.g. ['g', 's', 's', 's'] -> 'gsss').
+  // Exclude single digits (1, 2, etc.) so suffixes are not swallowed into the acronym.
   var words = [];
   for (var i = 0; i < rawWords.length; i++) {
-    if (rawWords[i].length === 1) {
+    if (/^[a-z]$/.test(rawWords[i])) {
       var acro = '';
       var j = i;
-      while (j < rawWords.length && rawWords[j].length === 1) {
+      while (j < rawWords.length && /^[a-z]$/.test(rawWords[j])) {
         acro += rawWords[j];
         j++;
       }
@@ -350,13 +455,25 @@ function schoolNormalizeKey_(s) {
   var out = [];
   for (var k = 0; k < words.length; k++) {
     var w = words[k];
-    if (SCHOOL_ABBR_EXPAND_[w]) {
-      out = out.concat(SCHOOL_ABBR_EXPAND_[w]);
-    } else {
-      out.push(SCHOOL_WORD_SYNONYMS_[w] || w);
-    }
+    var expanded = SCHOOL_ABBR_EXPAND_[w] || [SCHOOL_WORD_SYNONYMS_[w] || w];
+    expanded.forEach(function (word) {
+      // GSSS expands to "... school"; an immediately following literal
+      // SCHOOL is redundant, not a different school identity.
+      if (out[out.length - 1] !== word) out.push(word);
+    });
   }
-  return phoneticKey_(out.join(''));
+
+  // Institutional modifier reordering:
+  // If 'girls' or 'boys' appears after 'sr sec', 'sec', 'mid', 'up pri', 'pri',
+  // reorder it to precede them (e.g. 'govt sr sec girls school' -> 'govt girls sr sec school')
+  // so word order in English translations of Hindi board names is invariant.
+  var joined = ' ' + out.join(' ') + ' ';
+  joined = joined.replace(/ govt (sr sec|sec|mid|up pri|pri) (girls|boys) school /g, ' govt $2 $1 school ');
+  out = joined.trim().split(/\s+/);
+
+  // Keep word boundaries until locationKey_ has converted a separated Roman
+  // numeral (e.g. "II") to the matching Arabic suffix ("2").
+  return locationKey_(out.join(' '));
 }
 
 function schoolMatch_(sheetVal, selected) {
@@ -365,14 +482,28 @@ function schoolMatch_(sheetVal, selected) {
   if (!sel) return true;
   var s = String(sheetVal || '').trim();
   if (!s) return false;
-  if (schoolNormalizeKey_(s) === schoolNormalizeKey_(sel)) return true;
+  var k1 = schoolNormalizeKey_(s);
+  var k2 = schoolNormalizeKey_(sel);
+  if (k1 === k2) return true;
+
+  // PM-SHRI scheme prefix tolerance:
+  // Schools upgraded under the Central PM-SHRI scheme are often entered with
+  // or without the "PM SHRI" / "PMSHRI" prefix (e.g. "PM SHRI GSSS Jawada" vs "GSSS Jawada").
+  var p1 = k1.replace(/^pmshri/, '');
+  var p2 = k2.replace(/^pmshri/, '');
+  if (p1 && p1 === p2) return true;
 
   // Registrations made before the separate Village field was introduced put
   // "School name, Village" in the School cell. Accept the school-name part
   // when looking up those legacy rows so the new comma-free form can still
   // find their bill and prior payments.
   var comma = s.lastIndexOf(',');
-  return comma > 0 && schoolNormalizeKey_(s.substring(0, comma)) === schoolNormalizeKey_(sel);
+  if (comma > 0) {
+    var kLegacy = schoolNormalizeKey_(s.substring(0, comma));
+    if (kLegacy === k2) return true;
+    if (p2 && kLegacy.replace(/^pmshri/, '') === p2) return true;
+  }
+  return false;
 }
 
 // Return a displayable school name for both current and legacy rows. A comma
@@ -477,8 +608,9 @@ function ensureRegistrationStatusColumn_(sheet) {
   PropertiesService.getScriptProperties().setProperty('REG_STATUS_SECURITY_ENABLED', '1');
 }
 
-function registrationStatuses_(sheet, rowCount) {
+function registrationStatuses_(sheet, rowCount, startRow) {
   if (rowCount < 1) return [];
+  startRow = startRow || 2;
   var props = PropertiesService.getScriptProperties();
   var enabled = props.getProperty('REG_STATUS_SECURITY_ENABLED') === '1';
   function failClosed_() {
@@ -493,7 +625,7 @@ function registrationStatuses_(sheet, rowCount) {
   var header = String(sheet.getRange(1, REG_STATUS_COLUMN_).getValue() || '').trim();
   if (header !== REG_STATUS_HEADER_) return enabled ? failClosed_() : [];
   if (!enabled) props.setProperty('REG_STATUS_SECURITY_ENABLED', '1');
-  return sheet.getRange(2, REG_STATUS_COLUMN_, rowCount, 1).getValues();
+  return sheet.getRange(startRow, REG_STATUS_COLUMN_, rowCount, 1).getValues();
 }
 
 function registrationVerified_(status) {
@@ -565,10 +697,10 @@ function registrationWriteAllowed_(data) {
   var cache = CacheService.getScriptCache();
   var mobileKey = 'reg-mobile:' + compactKey_(data.mobile);
   var schoolKey = 'reg-school:' + compactKey_(data.district) + ':' + compactKey_(data.block) + ':' +
-    schoolNormalizeKey_(data.school) + ':' + compactKey_(data.village);
+    schoolNormalizeKey_(data.school) + ':' + locationKey_(data.village);
   var mobileCount = Number(cache.get(mobileKey) || 0);
   var schoolCount = Number(cache.get(schoolKey) || 0);
-  if (mobileCount >= 3 || schoolCount >= 25) return false;
+  if (mobileCount >= 3 || schoolCount >= 50) return false;
   props.setProperty('REG_RATE_WINDOW_START', String(windowStart));
   props.setProperty('REG_RATE_WINDOW_COUNT', String(globalCount + 1));
   cache.put(mobileKey, String(mobileCount + 1), 21600);
@@ -643,6 +775,43 @@ function duplicateRegistrationExists_(sheet, name, father, mobile) {
   return false;
 }
 
+// Before writing a new registration, reuse the dominant spelling already on
+// file when its district, block, school and village all resolve to the same
+// existing identity. This prevents new form submissions from creating fresh
+// "GSSS"/"Government School", spacing, transliteration, or II/2 variants.
+// A tie is deliberately left untouched: the lookup still works, but the API
+// never guesses between equally common stored spellings.
+function canonicalRegistrationLocation_(sheet, district, block, school, village) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { school: school, village: village, changed: false };
+  var scanCount = Math.min(lastRow - 1, 1500);
+  var startRow = lastRow - scanCount + 1;
+  var values = sheet.getRange(startRow, 7, scanCount, 6).getValues();
+  var statuses = registrationStatuses_(sheet, scanCount, startRow);
+  var candidates = {};
+  for (var i = 0; i < values.length; i++) {
+    if (!registrationVerified_(statuses[i] && statuses[i][0])) continue;
+    var loc = regRowLocation_(values[i][0], values[i][1], values[i][2], values[i][3], values[i][4], values[i][5]);
+    if (!loc.school || !loc.village) continue;
+    if (!locMatch_(loc.district, district) || !locMatch_(loc.block, block)) continue;
+    var onFileSchool = schoolDisplayName_(loc.school, loc.village);
+    if (!schoolMatch_(onFileSchool, school) || !locMatch_(loc.village, village)) continue;
+    var key = upper_(onFileSchool) + '\u0000' + upper_(loc.village);
+    if (!candidates[key]) candidates[key] = { school: onFileSchool, village: loc.village, count: 0 };
+    candidates[key].count++;
+  }
+  var matches = Object.keys(candidates).map(function (key) { return candidates[key]; });
+  if (!matches.length) return { school: school, village: village, changed: false };
+  matches.sort(function (a, b) { return b.count - a.count || a.school.localeCompare(b.school) || a.village.localeCompare(b.village); });
+  if (matches.length > 1 && matches[0].count === matches[1].count) return { school: school, village: village, changed: false };
+  var winner = matches[0];
+  return {
+    school: winner.school,
+    village: winner.village,
+    changed: upper_(winner.school) !== upper_(school) || upper_(winner.village) !== upper_(village)
+  };
+}
+
 function submitRegistration(data) {
   data = data || {};
   try {
@@ -697,6 +866,9 @@ function submitRegistration(data) {
       var sheet = getRegistrationSheet_(ss);
       ensureRegistrationHeaders_(sheet);
       ensureRegistrationStatusColumn_(sheet);
+      var canonicalLocation = canonicalRegistrationLocation_(sheet, data.district, data.block, data.school, data.village);
+      data.school = canonicalLocation.school;
+      data.village = canonicalLocation.village;
       if (duplicateRegistrationExists_(sheet, data.name, data.father, data.mobile)) {
         return { ok: false, error: 'यह विद्यार्थी पहले से पंजीकृत है / This student is already registered' };
       }
@@ -727,7 +899,6 @@ function submitRegistration(data) {
         '', '', '', '', '', '',
         initialStatus
       ]);
-      invalidateSchoolsCache_(data.district, data.block);
       return { ok: true, regNo: regNo, omrNo: omrNo };
     } finally {
       lock.releaseLock();
@@ -740,16 +911,6 @@ function submitRegistration(data) {
 
 function omrFromSerial_(n) {
   return '26' + ('000000' + n).slice(-6);
-}
-
-/**
- * Run once from the editor (select this function in the dropdown, then Run)
- * after clearing out all registration rows, so the next real registration
- * starts at GVP-2026-00001 again instead of continuing from the cached
- * counter. Not needed otherwise — nextRegSerial_ manages the counter itself.
- */
-function resetRegSerialCounter() {
-  PropertiesService.getScriptProperties().deleteProperty('LAST_REG_SERIAL');
 }
 
 /** Run once from the editor to fill OMR Roll for existing rows. */
@@ -889,7 +1050,7 @@ function getSchoolStudents(district, block, school, village, mobile) {
     block = String(block || '').trim();
     school = String(school || '').trim();
     village = String(village || '').trim();
-    mobile = String(mobile || '').trim();
+    mobile = String(mobile || '').replace(/\s+/g, '').replace(/^[+]?(91|0)(?=[6-9][0-9]{9}$)/, '');
     if (!school) return { ok: false, error: 'School name is required / विद्यालय का नाम लिखें' };
     if (!village) return { ok: false, error: 'Village or city is required / गाँव या शहर लिखें' };
     var locErr = validLocation_(district, block);
@@ -944,34 +1105,6 @@ function getSchoolStudents(district, block, school, village, mobile) {
 // Distinct school names already registered, optionally narrowed to a
 // district/block, for the site's school-name autocomplete. Returns sorted,
 // de-duplicated names as stored (upper_() at submit time).
-//
-// Cache helpers are retained for compatibility with older deployments, but
-// status-aware school lists are read live so organizer approval changes take
-// effect immediately.
-var SCHOOLS_CACHE_TTL_SEC = 300;
-
-function schoolsCacheKey_(district, block) {
-  return 'schools:' + compactKey_(district) + ':' + compactKey_(block);
-}
-
-function invalidateSchoolsCache_(district, block) {
-  try {
-    CacheService.getScriptCache().removeAll([
-      schoolsCacheKey_('', ''),
-      // getSchools supports an optional district filter, so a newly added
-      // school also changes a block-only result (for example, ?block=Asind).
-      // Invalidate that key as well; otherwise it can remain stale for the
-      // cache TTL even though the exact district/block key is refreshed.
-      schoolsCacheKey_('', block),
-      schoolsCacheKey_(district, ''),
-      schoolsCacheKey_(district, block)
-    ]);
-  } catch (e) {
-    // Cache is best-effort; a failed invalidation just means autocomplete
-    // can lag by up to SCHOOLS_CACHE_TTL_SEC, not a correctness issue.
-  }
-}
-
 function getSchools(district, block) {
   var sheet = getRegistrationSheet_(getSpreadsheet_());
   var lastRow = sheet.getLastRow();
@@ -1031,7 +1164,7 @@ function getVillages(district, block, school) {
       if (!schoolMatch_(schoolDisplayName_(loc.school, loc.village), school)) continue;
       var place = loc.village;
       if (!place) continue;
-      var key = phoneticKey_(place);
+      var key = locationKey_(place);
       if (seen[key]) continue;
       seen[key] = true;
       out.push(place);
@@ -1057,11 +1190,11 @@ function sumSchoolPaid_(district, block, school, village, sheet) {
   var values = sheet.getRange(2, 1, lastRow - 1, 13).getValues();
   var paid = 0;
   for (var i = 0; i < values.length; i++) {
-    var st = String(values[i][6] || '').trim();
+    var st = String(values[i][6] || '').trim().toLowerCase();
     // A user-entered UTR is only a payment report. It must not lower the
     // school bill until an organizer has checked the bank transaction and
     // changes this Status cell to Paid in the Payments sheet.
-    if (st !== 'Paid') continue;
+    if (st !== 'paid') continue;
     if (district && !locMatch_(values[i][0], district)) continue;
     if (block && !locMatch_(values[i][1], block)) continue;
     if (!paymentLocationMatch_(values[i][2], values[i][12], school, village)) continue;
@@ -1078,7 +1211,7 @@ function sumSchoolReported_(district, block, school, village, sheet) {
   var values = sheet.getRange(2, 1, lastRow - 1, 13).getValues();
   var reported = 0;
   for (var i = 0; i < values.length; i++) {
-    if (String(values[i][6] || '').trim() !== 'Reported') continue;
+    if (String(values[i][6] || '').trim().toLowerCase() !== 'reported') continue;
     if (district && !locMatch_(values[i][0], district)) continue;
     if (block && !locMatch_(values[i][1], block)) continue;
     if (!paymentLocationMatch_(values[i][2], values[i][12], school, village)) continue;
@@ -1205,8 +1338,8 @@ function reportSchoolPayment(data) {
     var school = String(data.school || '').trim();
     var village = String(data.village || '').trim();
     var payeeName = String(data.payeeName || '').trim();
-    var utr = String(data.utr || '').trim();
-    var mobile = String(data.mobile || '').trim();
+    var utr = String(data.utr || '').replace(/\s+/g, '');
+    var mobile = String(data.mobile || '').replace(/\s+/g, '').replace(/^[+]?(91|0)(?=[6-9][0-9]{9}$)/, '');
 
     if (!school) return { ok: false, error: 'School name is required / विद्यालय का नाम लिखें' };
     if (!village) return { ok: false, error: 'Village or city is required / गाँव या शहर लिखें' };
@@ -1302,7 +1435,7 @@ function rebuildSchoolDues() {
   var bookRank = { Pending: 0, Packed: 1, Sent: 2 };
 
   function keyOf(d, b, s, v) {
-    return compactKey_(d) + '|' + compactKey_(b) + '|' + schoolNormalizeKey_(s) + '|' + compactKey_(v);
+    return compactKey_(d) + '|' + compactKey_(b) + '|' + schoolNormalizeKey_(s) + '|' + locationKey_(v);
   }
   function ensure(d, b, s, v) {
     var key = keyOf(d, b, s, v);
@@ -1375,97 +1508,3 @@ function rebuildSchoolDues() {
   return { ok: true, schools: out.length - 1 };
 }
 
-// ---------------------------------------------------------------------
-// ONE-TIME MAINTENANCE — run manually from the Apps Script editor
-// (select fixSchoolNameSplits from the function dropdown, click Run).
-// Not called by any API action; safe to delete after running once.
-//
-// Fixes registrations for a real school that got split across different
-// spellings/formats of the School column itself (typos, legacy comma
-// format, "PM SHRI" renaming inconsistency, a stray truncated/garbled
-// entry) — as opposed to Village drift, which countSchoolStudents_ and
-// getVillages already tolerate at query time. Each entry below was
-// verified by hand against the exported sheet data: same real village,
-// same admin level (senior-secondary vs primary etc. not mixed), and
-// checked for cross-block collisions before being scoped to a specific
-// district+block so it can't touch a same-named school elsewhere.
-//
-// Every match is EXACT (district + block + full School cell text, and
-// for the Parda Saroda case also Village) — nothing here does a partial
-// or fuzzy replace, so a row that doesn't match one of these entries
-// exactly is left untouched.
-function fixSchoolNameSplits() {
-  var sheet = getRegistrationSheet_(getSpreadsheet_());
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) {
-    Logger.log('No data rows.');
-    return;
-  }
-
-  // { district, block, school: exact current School text to match,
-  //   village: optional — only set when the School text alone isn't
-  //   unique enough within that district+block, e.g. the Parda Saroda
-  //   case shares its bare School text with two other real schools
-  //   (Vamasa, Saroda) in the same block, so Village disambiguates it.
-  //   replacement: new School text to write. }
-  var fixes = [
-    { district: 'BUNDI', block: 'K.PATAN', school: 'GSSS GRAMPURA GRAMIN LAKHERI, LAKHERI', replacement: 'GSSS GARAMPURA GRAMEEN LAKHERI' },
-    { district: 'BUNDI', block: 'K.PATAN', school: 'GSSS GRAMPURA GRAMIN LAKHERI , LAKHERI', replacement: 'GSSS GARAMPURA GRAMEEN LAKHERI' },
-    { district: 'BUNDI', block: 'K.PATAN', school: 'GSSS GRAMPURA GRAMEEN LAKHERI, LAKHERI', replacement: 'GSSS GARAMPURA GRAMEEN LAKHERI' },
-    { district: 'BUNDI', block: 'K.PATAN', school: 'GSSS GARAMPURA GRAMEEN LAKHERI ,LAKHERI', replacement: 'GSSS GARAMPURA GRAMEEN LAKHERI' },
-    { district: 'BUNDI', block: 'K.PATAN', school: 'GSSS GARAMPURA GRAMEEN LAKHERIL', replacement: 'GSSS GARAMPURA GRAMEEN LAKHERI' },
-    { district: 'BUNDI', block: 'K.PATAN', school: 'GSSS GRAMPURA GRAMEEN LAKHERI', replacement: 'GSSS GARAMPURA GRAMEEN LAKHERI' },
-    { district: 'BUNDI', block: 'K.PATAN', school: 'GSSS GRAMPURA GRAMIN LAKHERI', replacement: 'GSSS GARAMPURA GRAMEEN LAKHERI' },
-
-    { district: 'DUNGARPUR', block: 'ASPUR', school: 'GOVERMENT SENIOR SECONDARY SCHOOL BADOUDA', replacement: 'GOVT SENIOR SECONDARY SCHOOL' },
-    { district: 'DUNGARPUR', block: 'ASPUR', school: 'KATISOUR,ASPUR', replacement: 'GSSS KATISOUR,ASPUR' },
-
-    { district: 'BHILWARA', block: 'RAIPUR', school: "GSSS-THALA'VILLAGAE-THALA , RAIPUR", replacement: 'GSSS THALA' },
-    { district: 'BHILWARA', block: 'RAIPUR', school: 'G.S.S.S THALA ,RAIPUR', replacement: 'GSSS THALA' },
-
-    { district: 'BARAN', block: 'ANTA', school: 'MGGS, SORKHAND KALAN', replacement: 'MGGS SORKHAND KALAN' },
-
-    { district: 'CHITTORGARH', block: 'NIMBAHERA', school: 'PM SHRI G S S S', replacement: 'PM SHRI GSS SCHOOL' },
-    { district: 'CHITTORGARH', block: 'NIMBAHERA', school: 'P M SHRI G S S SCHOOL', replacement: 'PM SHRI GSS SCHOOL' },
-    { district: 'CHITTORGARH', block: 'NIMBAHERA', school: 'P M SHRI GSS, SCHOOL', replacement: 'PM SHRI GSS SCHOOL' },
-    { district: 'CHITTORGARH', block: 'NIMBAHERA', school: 'PMSHRI GSS,SCHOOL', replacement: 'PM SHRI GSS SCHOOL' },
-    { district: 'CHITTORGARH', block: 'NIMBAHERA', school: 'PM SHRI GSS, SCHOOL', replacement: 'PM SHRI GSS SCHOOL' },
-    { district: 'CHITTORGARH', block: 'NIMBAHERA', school: 'GOVERNMENT UPPER PRIMARY SCHOOL MURLIYA, MURLIYA', replacement: 'GOVT UPPER PRIMARY SCHOOL' },
-
-    { district: 'DUNGARPUR', block: 'SAGWARA', school: 'GOVT SENIOR SECONDARY SCHOOL VAMASA,CANADA/VAMASA', replacement: 'GOVT SENIOR SECONDARY SCHOOL' },
-    { district: 'DUNGARPUR', block: 'SAGWARA', school: 'GOV', replacement: 'GOVT SENIOR SECONDARY SCHOOL' },
-    { district: 'DUNGARPUR', block: 'SAGWARA', school: 'GOVT SENIOR SECONDARY SCHOOL', village: 'PARDA SARODA', replacement: 'GOVT SR SEC SCHOOL PARDA SARODA' }
-  ];
-
-  var values = sheet.getRange(2, 7, lastRow - 1, 4).getValues(); // G:J = District, Block, School, Village
-  var counts = {};
-  var writes = []; // {row, value}
-
-  for (var i = 0; i < values.length; i++) {
-    var district = String(values[i][0] || '').trim().toUpperCase();
-    var block = String(values[i][1] || '').trim().toUpperCase();
-    var school = String(values[i][2] || '').trim();
-    var village = String(values[i][3] || '').trim().toUpperCase();
-    var sheetRow = i + 2;
-
-    for (var f = 0; f < fixes.length; f++) {
-      var fx = fixes[f];
-      if (district !== fx.district || block !== fx.block || school !== fx.school) continue;
-      if (fx.village && village !== fx.village) continue;
-      writes.push({ row: sheetRow, value: fx.replacement });
-      var logKey = fx.district + '/' + fx.block + ': "' + fx.school + '"' + (fx.village ? ' [village=' + fx.village + ']' : '') + ' -> "' + fx.replacement + '"';
-      counts[logKey] = (counts[logKey] || 0) + 1;
-      break;
-    }
-  }
-
-  Logger.log('Rows matched per fix:');
-  Object.keys(counts).forEach(function (k) { Logger.log('  ' + counts[k] + '  ' + k); });
-  Logger.log('Total rows to change: ' + writes.length);
-
-  for (var w = 0; w < writes.length; w++) {
-    sheet.getRange(writes[w].row, 9).setValue(writes[w].value); // column I = School
-  }
-
-  Logger.log('Done — School column updated for ' + writes.length + ' rows.');
-}

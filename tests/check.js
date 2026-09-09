@@ -241,7 +241,52 @@ assert.equal(context.locMatch_('JAWDA', 'JAWADA'), true);
 assert.equal(context.locMatch_('JAVDA', 'JAWADA'), true);
 assert.equal(context.locMatch_('JAWAD', 'JAWADA'), true);
 assert.equal(context.locMatch_('JAVAD', 'JAWADA'), true);
+assert.equal(context.locMatch_('Jawada 2', 'Javada II'), true);
+assert.equal(context.locMatch_('Javda-2', 'Jawada II'), true);
+assert.equal(context.locMatch_('Jawada 1', 'Jawada II'), false);
+assert.equal(context.schoolMatch_('Govt Senior Secondary School Jawada 2', 'GSSS Javda II'), true);
+assert.equal(context.schoolMatch_('Govt Senior Secondary School Jawada 1', 'GSSS Javda II'), false);
+assert.equal(context.locMatch_('Kothariya 2', 'Kothriya II'), true);
+assert.equal(context.locMatch_('Jawada 2', 'JawadaII'), true);
+assert.equal(context.locMatch_('Jawada 4', 'Jawada IV'), true);
+assert.equal(context.schoolMatch_('Govt Senior Secondary School Kothariya 2', 'GSSS Kothriya II'), true);
+assert.equal(context.schoolMatch_('Govt Senior Secondary School Kothariya 1', 'GSSS Kothriya II'), false);
+// Actual live-data formats, including a missing separator before the place.
+assert.equal(context.schoolMatch_('PM SHRI GOVERNMENT SENIOR SECONDARY SCHOOL JAWADA 2', 'PM SHRI GSSS.SCHOOLJAWADA-II'), true);
+assert.equal(context.schoolMatch_('Govt Senior Secondary School Jawada 2', 'GSSSSCHOOLJAWADA-2'), true);
+// Common Rajasthan abbreviations and synonyms
+assert.equal(context.schoolMatch_('Govt Girls Senior Secondary School Nimbahera', 'GGSSS Nimbahera'), true);
+assert.equal(context.schoolMatch_('Govt Balika Senior Secondary School Nimbahera', 'GGSSS Nimbahera'), true);
+assert.equal(context.schoolMatch_('Rajkiya Senior Secondary School Jawada', 'Govt Senior Secondary School Jawada'), true);
+assert.equal(context.schoolMatch_('Govt Hr Sec School Jawada', 'Govt Senior Secondary School Jawada'), true);
+assert.equal(context.schoolMatch_('Kendriya Vidyalaya Chittorgarh', 'KV Chittorgarh'), true);
+assert.equal(context.schoolMatch_('Jawahar Navodaya Vidyalaya Mandaphia', 'JNV Mandaphia'), true);
+assert.equal(context.schoolMatch_('Kasturba Gandhi Balika Vidyalaya Ghatol', 'KGBV Ghatol'), true);
+assert.equal(context.schoolMatch_('Mahatma Gandhi Govt School Banswara', 'MGGS Banswara'), true);
+// Acronyms immediately followed by numbers / Roman numerals without place name
+assert.equal(context.schoolMatch_('Govt Senior Secondary School 1', 'G.S.S.S. 1'), true);
+assert.equal(context.schoolMatch_('Govt Senior Secondary School 2', 'G.S.S.S. 2'), true);
+assert.equal(context.schoolMatch_('Govt Senior Secondary School 1', 'G.S.S.S. I'), true);
+assert.equal(context.schoolMatch_('Govt Senior Secondary School 2', 'G.S.S.S. II'), true);
 assert.equal(context.locMatch_('JAWADA', 'JAWAJA'), false);
+
+// A future registration with a matching variant is saved using the dominant
+// existing spelling, so the source sheet stops accumulating new variants.
+const canonicalLocationSheet = {
+  getLastRow: () => 4,
+  getMaxColumns: () => 13,
+  getRange: () => ({ getValues: () => [
+    ['Chittorgarh', 'Nimbahera', 'PM SHRI GSS SCHOOL JAWADA 2', 'JAWADA 2', '', ''],
+    ['Chittorgarh', 'Nimbahera', 'PM SHRI GSS SCHOOL JAWADA 2', 'JAWADA 2', '', ''],
+    ['Chittorgarh', 'Nimbahera', 'P M SHRI GSS SCHOOL,JAWADA II', 'JAWADA II', '', '']
+  ] })
+};
+assert.deepEqual(
+  JSON.parse(JSON.stringify(context.canonicalRegistrationLocation_(
+    canonicalLocationSheet, 'Chittorgarh', 'Nimbahera', 'P M SHRI GSS SCHOOL JAWADA-II', 'JAWADA II'
+  ))),
+  { school: 'PM SHRI GSS SCHOOL JAWADA 2', village: 'JAWADA 2', changed: true }
+);
 assert.equal(context.locMatch_('JAWADA', 'JODHPUR'), false);
 
 // Case-insensitive and transliteration tolerance in validLocation_ and getBlocks:
@@ -264,6 +309,49 @@ assert.equal(context.schoolNormalizeKey_('GSSS JAWDA'), jawadaSchoolKey);
 assert.equal(context.schoolNormalizeKey_('GSSS JAVDA'), jawadaSchoolKey);
 assert.equal(context.schoolNormalizeKey_('GSSS JAWAD'), jawadaSchoolKey);
 assert.equal(context.schoolNormalizeKey_('GSSS JAVAD'), jawadaSchoolKey);
+
+// Hindi school acronyms and synonyms:
+assert.equal(context.schoolNormalizeKey_('Rajkiya Uchh Madhyamik Vidyalaya Jawada'), jawadaSchoolKey);
+assert.equal(context.schoolNormalizeKey_('Raumavi Jawada'), jawadaSchoolKey);
+assert.equal(context.schoolNormalizeKey_('Raumaavi Jawada'), jawadaSchoolKey);
+assert.equal(context.schoolNormalizeKey_('R.U.M.V. Jawada'), jawadaSchoolKey);
+
+// Institutional modifier word order invariance (e.g. GGSSS Kotri):
+const ggsssKotriKey = context.schoolNormalizeKey_('GGSSS KOTRI');
+assert.equal(context.schoolNormalizeKey_('Govt Girls Sr Sec School Kotri'), ggsssKotriKey);
+assert.equal(context.schoolNormalizeKey_('Govt Sr Sec Girls School Kotri'), ggsssKotriKey);
+assert.equal(context.schoolNormalizeKey_('Rajkiya Balika Uchh Madhyamik Vidyalaya Kotri'), ggsssKotriKey);
+assert.equal(context.schoolNormalizeKey_('Raubamavi Kotri'), ggsssKotriKey);
+assert.equal(context.schoolNormalizeKey_('R.B.U.M.V. Kotri'), ggsssKotriKey);
+
+// PM-SHRI Scheme prefix tolerance:
+assert.equal(context.schoolMatch_('PM SHRI GSSS JAWADA', 'GSSS JAWADA'), true);
+assert.equal(context.schoolMatch_('GSSS JAWADA', 'PM SHRI GSSS JAWADA'), true);
+assert.equal(context.schoolMatch_('PM-SHRI GGSSS KOTRI', 'GGSSS KOTRI'), true);
+assert.equal(context.schoolMatch_('PM SHRI GSSS JAWADA', 'GSSS KOTRI'), false);
+
+// Consonant aspiration tolerance in location matching:
+assert.equal(context.locMatch_('Kotri', 'Kothri'), true);
+assert.equal(context.locMatch_('Kotariya', 'Kothariya'), true);
+assert.equal(context.locMatch_('Mandaphia', 'Mandafia'), true);
+assert.equal(context.locMatch_('Bhilwara', 'Bilwara'), true);
+assert.equal(context.locMatch_('Ghatol', 'Gatol'), true);
+assert.equal(context.locMatch_('Dhamnod', 'Damnod'), true);
+assert.equal(context.locMatch_('Chhoti Sadri', 'Choti Sadri'), true);
+// Discrimination preservation:
+assert.equal(context.locMatch_('Jawada', 'Jawaja'), false);
+assert.equal(context.locMatch_('Asind', 'Amet'), false);
+
+// Short village collision safeguards in villageSimilar_:
+assert.equal(context.villageSimilar_('Bor', 'Mor'), false);
+assert.equal(context.villageSimilar_('Bor', 'Dor'), false);
+assert.equal(context.villageSimilar_('Pee', 'Dee'), false);
+assert.equal(context.villageSimilar_('Pal', 'Mal'), false);
+assert.equal(context.villageSimilar_('Pal', 'Palasoda'), false);
+assert.equal(context.villageSimilar_('Bor', 'Boria'), false);
+assert.equal(context.villageSimilar_('Jawada', 'Javada'), true);
+assert.equal(context.villageSimilar_('Jawada', 'Jawada Khurd'), true);
+assert.equal(context.villageSimilar_('Village Jawada', 'Jawada'), true);
 
 // Verify cross-spelling retrieval of students registered with JAVADA when queried with JAWADA:
 const jawadaStudent = [
@@ -290,6 +378,50 @@ const jawdaResult = context.getSchoolStudents(
 assert.equal(jawdaResult.ok, true);
 assert.equal(jawdaResult.data.length, 1);
 assert.equal(jawdaResult.data[0].name, 'RAMESH');
+
+const jawadaNumberStudent = jawadaStudent.slice();
+jawadaNumberStudent[7] = 'Javda-2';
+jawadaNumberStudent[8] = '9876588888';
+const jawadaNumberSheet = {
+  getLastRow: () => 2,
+  getMaxColumns: () => 13,
+  getRange: () => ({ getValues: () => [fullRegistrationRow(jawadaNumberStudent, 'GVP-2026-00004', 12).slice(0, 13)] })
+};
+context.getRegistrationSheet_ = () => jawadaNumberSheet;
+const jawadaNumberResult = context.getSchoolStudents(
+  'Chittorgarh', 'Nimbahera', 'Govt Sr Sec School Javda', 'Jawada II', '9876588888'
+);
+assert.equal(jawadaNumberResult.ok, true);
+assert.equal(jawadaNumberResult.data.length, 1);
+
+// Sanitized +91 phone lookup in getSchoolStudents:
+const sanitizedPhoneResult = context.getSchoolStudents(
+  'Chittorgarh', 'Nimbahera', 'Govt Sr Sec School Javda', 'Jawada II', '+91 98765 88888'
+);
+assert.equal(sanitizedPhoneResult.ok, true);
+assert.equal(sanitizedPhoneResult.data.length, 1);
+
+// Case-insensitive payment status verification (PAID / paid / REPORTED / reported):
+const mockPaymentSheet = {
+  getLastRow: () => 3,
+  getRange: () => ({
+    getValues: () => [
+      ['Chittorgarh', 'Nimbahera', 'GSSS JAWADA', '10', '500', '300', 'PAID', 'CLERK', '123456789012', '9876599999', '', '', 'JAWADA'],
+      ['Chittorgarh', 'Nimbahera', 'GSSS JAWADA', '10', '500', '200', 'paid', 'CLERK', '123456789013', '9876599999', '', '', 'JAWADA']
+    ]
+  })
+};
+assert.equal(context.sumSchoolPaid_('Chittorgarh', 'Nimbahera', 'GSSS JAWADA', 'JAWADA', mockPaymentSheet), 500);
+
+const mockReportedSheet = {
+  getLastRow: () => 2,
+  getRange: () => ({
+    getValues: () => [
+      ['Chittorgarh', 'Nimbahera', 'GSSS JAWADA', '10', '500', '150', 'REPORTED', 'CLERK', '123456789014', '9876599999', '', '', 'JAWADA']
+    ]
+  })
+};
+assert.equal(context.sumSchoolReported_('Chittorgarh', 'Nimbahera', 'GSSS JAWADA', 'JAWADA', mockReportedSheet), 150);
 
 // OMR backfill writes L for current rows and R for legacy rows without
 // replacing the legacy Village value that also lives in column L.

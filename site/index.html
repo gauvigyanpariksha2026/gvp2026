@@ -230,6 +230,8 @@ select.inp:disabled{
       </div>
     </div>
 
+    <form id="registrationForm" novalidate>
+
     <!-- 1 -->
     <section class="reveal form-step-card" data-step>
       <h2 class="sec">१. छात्र विवरण <span class="sec-en">Student Details</span></h2>
@@ -299,7 +301,7 @@ select.inp:disabled{
                      placeholder="School name"
                      lang="en" autocapitalize="words" spellcheck="false" required>
               <div id="schoolAcList" class="ac-list hidden" role="listbox" aria-label="विद्यालय सुझाव"></div>
-              <p class="hint">Example: Govt Senior Secondary School</p>
+              <p class="hint">Example: Govt Senior Secondary School. सूची में नहीं है? नाम और स्थान अंग्रेज़ी में लिखकर आगे बढ़ें।</p>
               <p id="schoolGenericWarn" class="hint hidden" style="color:#8a6423">Many schools share this generic name — add the village/area name so yours isn't confused with another. Example: "GSSS Kotri" instead of just "GSSS".</p>
             </div>
             <div class="ac-wrap">
@@ -341,15 +343,17 @@ select.inp:disabled{
       <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
     </div>
 
-    <div id="formErr" class="hidden mt-6 rounded-lg border border-terra/50 bg-terra/10 px-4 py-3 text-sm"></div>
+    <div id="formErr" class="hidden mt-6 rounded-lg border border-terra/50 bg-terra/10 px-4 py-3 text-sm" role="alert" aria-live="assertive" tabindex="-1"></div>
+    <p id="draftStatus" class="mt-3 text-xs text-ink/55" role="status" aria-live="polite"></p>
 
     <div class="mt-8 flex flex-col sm:flex-row sm:items-center gap-4">
-      <button id="submitBtn" type="button" class="btn">
+      <button id="submitBtn" type="submit" class="btn">
         <span id="btnTxt">पंजीकरण जमा करें</span>
         <span id="btnSpin" class="hidden ml-2 h-4 w-4 animate-spin rounded-full border-2 border-cream/40 border-t-cream"></span>
       </button>
       <p class="text-xs text-ink/55">जमा करने से पूर्व सभी विवरण जाँच लें।</p>
     </div>
+    </form>
   </main>
 
   <!-- ===== SUCCESS ===== -->
@@ -366,7 +370,7 @@ select.inp:disabled{
     <p id="omrNo" class="mt-5 inline-block rounded-lg border border-gold/50 bg-sand px-5 py-2 font-lat text-2xl tracking-[0.28em] done-item"></p>
     <p class="mt-3 text-sm text-ink/55 done-item">
       पंजीकरण क्रमांक: <span id="regNo" class="font-lat tracking-wider font-semibold text-terra"></span>
-      <button id="copyRegBtn" type="button" class="ml-2 inline-flex items-center gap-1 rounded border border-gold/40 bg-sand/60 px-2 py-0.5 text-xs text-terra hover:bg-sand print-hide" title="कॉपी करें">
+      <button id="copyRegBtn" type="button" class="ml-2 inline-flex items-center gap-1 rounded border border-gold/40 bg-sand/60 px-2 py-0.5 text-xs text-terra hover:bg-sand print-hide" style="min-width:44px;min-height:44px" title="कॉपी करें">
         <span aria-hidden="true">📋</span> <span id="copyRegTxt">कॉपी करें</span>
       </button>
     </p>
@@ -890,15 +894,29 @@ blockEl.addEventListener('change',function(){
 });
 
 function translitNorm(s){
-  var k = String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  var raw = String(s || '').toLowerCase()
+    .replace(/([a-z])(iii|ii|iv)\b/g, '$1 $2')
+    .replace(/\biv\b/g, '4')
+    .replace(/\biii\b/g, '3')
+    .replace(/\bii\b/g, '2')
+    .replace(/\bi\b/g, '1');
+  var k = raw.replace(/[^a-z0-9]/g, '');
   if (!k) return '';
+  k = k.replace(/chh/g, 'ch')
+       .replace(/ph/g, 'f')
+       .replace(/th/g, 't')
+       .replace(/dh/g, 'd')
+       .replace(/bh/g, 'b')
+       .replace(/kh/g, 'k')
+       .replace(/gh/g, 'g');
   k = k.replace(/w/g, 'v');
   k = k.replace(/aa+/g, 'a')
        .replace(/ee+/g, 'i')
        .replace(/oo+/g, 'u')
        .replace(/ii+/g, 'i')
        .replace(/uu+/g, 'u');
-  k = k.replace(/ja*va*d[ah]*/g, 'javada');
+  k = k.replace(/([bcdfghjklmnpqrstvwxyz])a(?=[bcdfghjklmnpqrstvwxyz])/g, '$1')
+       .replace(/a$/, '');
   return k;
 }
 
@@ -1087,9 +1105,16 @@ $('school').addEventListener('blur',refreshVillageList);
 // which is fragile against the exact spelling-drift bug this site already
 // hit. Nudge (don't block) toward including a distinctive place name.
 var GENERIC_SCHOOL_WORDS_={
-  govt:1,government:1,sr:1,senior:1,sen:1,sec:1,secondary:1,school:1,
+  govt:1,government:1,rajkiya:1,rajkya:1,sr:1,senior:1,sen:1,higher:1,hr:1,sec:1,secondary:1,school:1,
   pri:1,primary:1,prim:1,up:1,upper:1,mid:1,middle:1,
-  vidyalaya:1,vidhyalaya:1,gsss:1,gss:1,gups:1,gps:1,gms:1,dps:1
+  vidyalaya:1,vidhyalaya:1,vidyalay:1,vidhyalay:1,vidyapeeth:1,vidyapith:1,
+  gsss:1,ggsss:1,gbsss:1,gss:1,ggss:1,gbss:1,gups:1,ggups:1,gbups:1,gps:1,ggps:1,gbps:1,gms:1,ggms:1,
+  ghss:1,hss:1,mggs:1,kgbv:1,kv:1,jnv:1,dps:1,pmshri:1,pm:1,shri:1,shree:1,
+  raumavi:1,raumaavi:1,rumv:1,rumvi:1,raubamavi:1,raubaumaavi:1,rbumv:1,
+  ramavi:1,ramaavi:1,rmv:1,raupravi:1,raupraavi:1,rupv:1,rapravi:1,rapraavi:1,rpv:1,
+  svgms:1,svms:1,model:1,uchh:1,uchch:1,uchcha:1,uch:1,madhyamik:1,madhyamika:1,madhymik:1,
+  prathmik:1,prathamik:1,praathmik:1,
+  girls:1,girl:1,balika:1,boys:1,boy:1,balak:1
 };
 function isGenericSchoolName(s){
   var words=String(s||'').toLowerCase().split(/[^a-z0-9]+/).filter(function(w){return w;});
@@ -1128,7 +1153,8 @@ $('school').addEventListener('blur',refreshSchoolGenericWarn);
 
 /* ---------- submit ---------- */
 var isSubmitting = false;
-$('submitBtn').addEventListener('click',function(){
+function submitRegistration(event){
+  if(event) event.preventDefault();
   if(isSubmitting) return;
   clean(); hide($('formErr'));
   var data={
@@ -1168,8 +1194,11 @@ $('submitBtn').addEventListener('click',function(){
     var f=document.querySelector('.err');
     if(f){
       f.scrollIntoView({behavior:'smooth',block:'center'});
+      setTimeout(function(){ f.focus(); }, 300);
       f.classList.add('shake');
       setTimeout(function(){f.classList.remove('shake');},450);
+    } else {
+      $('formErr').focus();
     }
     return;
   }
@@ -1196,6 +1225,7 @@ $('submitBtn').addEventListener('click',function(){
         show($('formErr'),(res&&res.error)||'त्रुटि हुई, पुनः प्रयास करें'); return;
       }
       document.querySelector('main').classList.add('hidden');
+      clearRegistrationDraft();
       var done=$('done'); done.classList.remove('hidden');
       if(res.omrNo){
         $('omrNo').textContent=res.omrNo;
@@ -1257,7 +1287,8 @@ $('submitBtn').addEventListener('click',function(){
       $('btnTxt').textContent='पंजीकरण जमा करें';
       show($('formErr'),'सर्वर त्रुटि: '+errorMessage(e,'server error'));
     });
-});
+}
+$('registrationForm').addEventListener('submit',submitRegistration);
 
 $('printConfirmBtn').addEventListener('click',function(){
   document.body.classList.add('print-confirmation');
@@ -1299,12 +1330,48 @@ $('registerAnotherBtn').addEventListener('click',function(){
   if(window.updateRegistrationProgress) window.updateRegistrationProgress();
 });
 
-$('mobile').addEventListener('keydown',function(e){
-  if(e.key==='Enter'){
-    e.preventDefault();
-    $('submitBtn').click();
-  }
-});
+/* Keep an interrupted registration on this device only. The phone number is
+   deliberately excluded, and the draft is cleared after successful submit. */
+var REGISTRATION_DRAFT_KEY='gvp-registration-draft-v1';
+var registrationDraftFields=['name','father','cls','district','block','school','village','declare'];
+function saveRegistrationDraft(){
+  try {
+    var draft={};
+    registrationDraftFields.forEach(function(id){
+      var el=$(id); if(el) draft[id]=el.type==='checkbox'?el.checked:el.value;
+    });
+    var gender=document.querySelector('input[name="gender"]:checked');
+    draft.gender=gender?gender.value:'';
+    if(Object.keys(draft).some(function(k){ return draft[k]; })){
+      localStorage.setItem(REGISTRATION_DRAFT_KEY,JSON.stringify(draft));
+      if($('draftStatus')) $('draftStatus').textContent='प्रगति इस डिवाइस पर सुरक्षित है / Progress saved on this device.';
+    }
+  } catch(e) {}
+}
+function clearRegistrationDraft(){
+  try { localStorage.removeItem(REGISTRATION_DRAFT_KEY); } catch(e) {}
+  if($('draftStatus')) $('draftStatus').textContent='';
+}
+function restoreRegistrationDraft(){
+  try {
+    var draft=JSON.parse(localStorage.getItem(REGISTRATION_DRAFT_KEY)||'null');
+    if(!draft) return;
+    registrationDraftFields.forEach(function(id){
+      var el=$(id); if(el && draft[id]!==undefined){
+        if(el.type==='checkbox') el.checked=!!draft[id]; else el.value=draft[id];
+      }
+    });
+    if(draft.gender){ var radio=document.querySelector('input[name="gender"][value="'+draft.gender+'"]'); if(radio) radio.checked=true; }
+    if(draft.district){
+      fillBlocks(draft.district);
+      if(draft.block) blockEl.value=draft.block;
+    }
+    if($('draftStatus')) $('draftStatus').textContent='पहले भरी जानकारी इस डिवाइस से वापस लाई गई है / Restored saved progress on this device.';
+  } catch(e) {}
+}
+registrationDraftFields.forEach(function(id){ var el=$(id); if(el) el.addEventListener('input',saveRegistrationDraft); if(el) el.addEventListener('change',saveRegistrationDraft); });
+document.querySelectorAll('input[name="gender"]').forEach(function(el){ el.addEventListener('change',saveRegistrationDraft); });
+window.addEventListener('load',restoreRegistrationDraft);
 
 // Smart Phone Number Paste Cleaner
 function attachPhonePasteCleaner(el) {
