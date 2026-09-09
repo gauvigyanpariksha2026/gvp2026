@@ -76,6 +76,13 @@ deployment:
 
 - Open the site, select a district/block, submit a test registration, and
   confirm a new row appears in your Google Sheet's registration tab.
+- For automatic approval without SMS, run `setupApprovedStudentsSheet` once
+  from the Apps Script editor. Paste the trusted roster below its exact header:
+  **Name, Father, Gender, Class, District, Block, School, Village, Mobile,
+  Year**. A registration that matches all ten fields (ignoring case and extra
+  spaces) is written as **Verified** in column T; everything else stays
+  **Pending** for manual review. Existing rows with a blank status remain
+  verified for backward compatibility.
 - Open `pay.html`, select the same district/block/school, click **See
   amount**, and confirm it shows the right student count and fee.
 - Open **View registered students**, verify with a mobile number belonging to

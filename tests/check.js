@@ -7,6 +7,12 @@ const root = path.resolve(__dirname, '..');
 const backendSource = fs.readFileSync(path.join(root, 'apps-script', 'Code.gs'), 'utf8');
 const context = vm.createContext({ console });
 vm.runInContext(backendSource, context, { filename: 'apps-script/Code.gs' });
+const originalGetRegistrationSheet = context.getRegistrationSheet_;
+const securityProperties = new Map();
+context.PropertiesService = { getScriptProperties: () => ({
+  getProperty: (key) => securityProperties.get(key) || null,
+  setProperty: (key, value) => securityProperties.set(key, value)
+}) };
 
 const current = [
   'ALICE', 'FATHER', 'Female', '10', 'Banswara', 'Ghatol',
@@ -113,6 +119,105 @@ assert.deepEqual(
 );
 assert.equal(context.getSchoolStudents('', '', 'GSSS TEST', '', '9876543211').ok, false);
 assert.equal(context.getSchoolStudents('Banswara', 'Ghatol', 'GSSS TEST', 'Test Village', '9999999999').ok, false);
+
+// Pending public registrations must not affect bills or authorize roster access.
+const statusValues = [['Verified'], ['Pending']];
+const verifiedCurrent = current.slice();
+verifiedCurrent[8] = '9876501234';
+const statusAwareStudentSheet = {
+  getLastRow: () => 3,
+  getMaxColumns: () => 20,
+  getRange(row, column) {
+    if (row === 1 && column === 20) return { getValue: () => 'Registration Status' };
+    if (column === 20) return { getValues: () => statusValues };
+    const rows = [
+      fullRegistrationRow(verifiedCurrent, 'GVP-2026-00001', 12),
+      fullRegistrationRow(legacy, 'GVP-2026-00002', 18)
+    ];
+    if (column === 7) return { getValues: () => rows.map((value) => value.slice(6, 12)) };
+    return { getValues: () => rows };
+  }
+};
+context.getRegistrationSheet_ = () => statusAwareStudentSheet;
+assert.equal(context.getSchoolStudents('Banswara', 'Ghatol', 'GSSS TEST', 'Test Village', '9876543211').ok, false);
+assert.equal(context.getSchoolStudents('Banswara', 'Ghatol', 'GSSS TEST', 'Test Village', '9876501234').data.length, 1);
+assert.equal(context.countSchoolStudents_('Banswara', 'Ghatol', 'GSSS TEST', 'Test Village', statusAwareStudentSheet), 1);
+assert.equal(context.registrationVerified_('Rejected'), false);
+assert.equal(context.registrationVerified_('unexpected'), false);
+assert.equal(context.registrationVerified_(''), true);
+assert.equal(securityProperties.get('REG_STATUS_SECURITY_ENABLED'), '1');
+const damagedStatusSheet = {
+  getMaxColumns: () => 19,
+  getLastRow: () => 2
+};
+assert.deepEqual(JSON.parse(JSON.stringify(context.registrationStatuses_(damagedStatusSheet, 1))), [['Invalid']]);
+
+// Auto-verification uses a strict organizer-controlled roster. Cosmetic case
+// and whitespace normalize, but fuzzy school/location variants never approve.
+const approvedHeaders = [
+  'Name', 'Father', 'Gender', 'Class', 'District',
+  'Block', 'School', 'Village', 'Mobile', 'Year'
+];
+const approvedRow = [
+  ' Alice  Smith ', 'Father Smith', 'Female', '10', 'Banswara',
+  'Ghatol', 'GSSS Test', 'Test Village', '9876501234', '2026'
+];
+const approvedSheet = {
+  getLastRow: () => 2,
+  getRange: () => ({ getValues: () => [approvedHeaders, approvedRow] })
+};
+const approvedSs = { getSheetByName: (name) => name === 'Approved Students' ? approvedSheet : null };
+const approvedData = {
+  name: 'alice smith', father: 'father smith', gender: 'Female', cls: '10',
+  district: 'Banswara', block: 'Ghatol', school: 'GSSS TEST',
+  village: 'Test   Village', mobile: '9876501234', year: '2026'
+};
+assert.equal(context.approvedStudentMatch_(approvedSs, approvedData), true);
+assert.equal(context.approvedStudentMatch_(approvedSs, { ...approvedData, school: 'Govt Sr Sec School Test' }), false);
+assert.equal(context.approvedStudentMatch_(approvedSs, { ...approvedData, mobile: '9876501235', status: 'Verified' }), false);
+assert.equal(context.approvedStudentMatch_({ getSheetByName: () => null }, approvedData), false);
+const malformedApprovedSheet = {
+  getLastRow: () => 2,
+  getRange: () => ({ getValues: () => [['Student Name', ...approvedHeaders.slice(1)], approvedRow] })
+};
+assert.equal(context.approvedStudentMatch_({ getSheetByName: () => malformedApprovedSheet }, approvedData), false);
+assert.equal(context.UTILITY_SHEETS_['Approved Students'], true);
+const insertedRegistrationSheet = { marker: 'new registration sheet' };
+assert.equal(originalGetRegistrationSheet({
+  getSheetByName: () => null,
+  getSheets: () => [{ getName: () => 'Approved Students' }],
+  insertSheet: (name) => {
+    assert.equal(name, 'Registrations');
+    return insertedRegistrationSheet;
+  }
+}), insertedRegistrationSheet);
+
+// The rate limiter retains a global, non-payload-derived ceiling, so rotating
+// mobile/school input cannot make accepted registration volume unbounded.
+const rateProperties = new Map();
+const rateCache = new Map();
+context.PropertiesService = { getScriptProperties: () => ({
+  getProperty: (key) => rateProperties.get(key) || null,
+  setProperty: (key, value) => rateProperties.set(key, value)
+}) };
+context.CacheService = { getScriptCache: () => ({
+  get: (key) => rateCache.get(key) || null,
+  put: (key, value) => rateCache.set(key, value)
+}) };
+const rateData = { mobile: '9876501234', district: 'Banswara', block: 'Ghatol', school: 'GSSS TEST', village: 'Test Village' };
+assert.equal(context.registrationWriteAllowed_(rateData), true);
+rateProperties.set('REG_RATE_WINDOW_START', String(Math.floor(Date.now() / 1000)));
+rateProperties.set('REG_RATE_WINDOW_COUNT', String(context.REG_GLOBAL_WINDOW_MAX_));
+assert.equal(context.registrationWriteAllowed_({ ...rateData, mobile: '9876501235' }), false);
+const submitRegistrationSource = backendSource.slice(
+  backendSource.indexOf('function submitRegistration(data)'),
+  backendSource.indexOf('function registrationRow_', backendSource.indexOf('function submitRegistration(data)'))
+);
+assert.ok(
+  submitRegistrationSource.indexOf('duplicateRegistrationExists_(sheet, data.name, data.father, data.mobile)') <
+    submitRegistrationSource.indexOf('registrationWriteAllowed_(data)'),
+  'duplicate rejection must occur before registration quota is charged'
+);
 
 // A new-only sheet may have had all obsolete columns after M deleted.
 const narrowCurrent = current.slice();
@@ -272,6 +377,11 @@ assert.ok(manifest.name && manifest.start_url, 'site/manifest.json must have nam
 const payHtmlContent = fs.readFileSync(path.join(root, 'site', 'pay.html'), 'utf8');
 assert.match(payHtmlContent, /var\s+LAST_BILL_LOOKUP_VILLAGE\s*=/, 'LAST_BILL_LOOKUP_VILLAGE must be explicitly declared with var in site/pay.html');
 assert.doesNotMatch(payHtmlContent, /text\.innerHTML\s*=\s*['"]चयनित विद्यालय:/, 'updateSchoolStatusBadge must not use innerHTML to interpolate school/village text');
+assert.doesNotMatch(payHtmlContent, /params\.get\(['"]mobile['"]\)/, 'payment page must not read mobile from URL');
+assert.match(payHtmlContent, /GVP_API\.post\(['"]getSchoolStudents['"]/, 'school access code must be sent in a POST body');
+assert.match(backendSource, /action === ['"]getSchoolStudents['"][\s\S]*requires POST/, 'student-list GET requests must be rejected');
+assert.match(backendSource, /var amountReportable = amountDue;/, 'unverified payment reports must not reserve the balance');
+assert.doesNotMatch(backendSource, /reportableAmount <= 0/, 'pending reports must not block later reports');
 
 // Verify offline detection and banner presence in site/index.html, site/pay.html, and site/js/api.js
 const apiJsContent = fs.readFileSync(path.join(root, 'site', 'js', 'api.js'), 'utf8');
@@ -281,6 +391,7 @@ assert.match(apiJsContent, /navigator\.onLine\s*===\s*false/, 'site/js/api.js mu
 
 // Verify that registerAnotherBtn in site/index.html properly re-enables submitBtn
 const indexHtmlContent = fs.readFileSync(path.join(root, 'site', 'index.html'), 'utf8');
+assert.doesNotMatch(indexHtmlContent, /mobile\s*:\s*data\.mobile/, 'registration-to-payment URL must not contain mobile');
 assert.match(indexHtmlContent, /id=["']offlineBar["']/, 'site/index.html must include offlineBar banner');
 assert.match(indexHtmlContent, /window\.addEventListener\(['"]offline['"]/, 'site/index.html must listen for offline event');
 

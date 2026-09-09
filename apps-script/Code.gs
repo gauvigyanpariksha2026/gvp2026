@@ -39,9 +39,21 @@ var REG_HEADERS_ = [
   'Reg', 'Time', 'Name', 'Father', 'Gender', 'Class',
   'District', 'Block', 'School', 'Village', 'Mobile', 'OMR Roll', 'Year'
 ];
+// Column T is deliberately outside both the current (A:M) and legacy (A:R)
+// registration layouts. Existing blank rows remain trusted for compatibility;
+// new public submissions stay Pending until an organizer marks them Verified.
+var REG_STATUS_COLUMN_ = 20;
+var REG_STATUS_HEADER_ = 'Registration Status';
+var REG_GLOBAL_WINDOW_SEC_ = 600;
+var REG_GLOBAL_WINDOW_MAX_ = 100;
+var APPROVED_STUDENTS_SHEET_ = 'Approved Students';
+var APPROVED_STUDENTS_HEADERS_ = [
+  'Name', 'Father', 'Gender', 'Class', 'District',
+  'Block', 'School', 'Village', 'Mobile', 'Year'
+];
 var PAY_HEADERS_ = ['District', 'Block', 'School', 'Students', 'Amount Due', 'Amount Paid', 'Status', 'Payer Name', 'UTR', 'Payer Mobile', 'Reported At', 'Books', 'Village'];
 var DUES_HEADERS_ = ['District', 'Block', 'School', 'Students', 'Amount', 'Paid', 'Balance', 'Status', 'Books', 'Village'];
-var UTILITY_SHEETS_ = { 'Payments': true, 'School Dues': true, 'Errors': true };
+var UTILITY_SHEETS_ = { 'Payments': true, 'School Dues': true, 'Errors': true, 'Approved Students': true };
 
 function getSpreadsheet_() {
   // A bound project should not fail merely because an old copied ID remains here.
@@ -86,6 +98,9 @@ function doGet(e) {
   var action = String(params.action || '');
   if (!action) {
     return jsonOut_({ ok: false, error: 'Missing action. This URL is the GVP 2026 JSON API endpoint, not a page.' });
+  }
+  if (action === 'getSchoolStudents') {
+    return jsonOut_({ ok: false, error: 'Student-list access requires POST' });
   }
   return jsonOut_(dispatchApi_(action, params));
 }
@@ -423,7 +438,10 @@ function getRegistrationSheet_(ss) {
     var a2 = sheets[j].getLastRow() >= 2 ? String(sheets[j].getRange(2, 1).getValue() || '') : '';
     if (/^reg/i.test(a1) || /GVP-/i.test(a1) || /GVP-/i.test(a2)) return sheets[j];
   }
-  return sheets[0];
+  for (var k = 0; k < sheets.length; k++) {
+    if (!UTILITY_SHEETS_[sheets[k].getName()]) return sheets[k];
+  }
+  return ss.insertSheet('Registrations');
 }
 
 // Keeps row 1 exactly equal to REG_HEADERS_ across columns 1..REG_HEADERS_.length.
@@ -444,6 +462,118 @@ function ensureRegistrationHeaders_(sheet) {
     sheet.getRange(1, 1, 1, REG_HEADERS_.length).setValues([REG_HEADERS_]);
     sheet.setFrozenRows(1);
   }
+}
+
+function ensureRegistrationStatusColumn_(sheet) {
+  var missing = REG_STATUS_COLUMN_ - sheet.getMaxColumns();
+  if (missing > 0) sheet.insertColumnsAfter(sheet.getMaxColumns(), missing);
+  var current = String(sheet.getRange(1, REG_STATUS_COLUMN_).getValue() || '').trim();
+  if (current && current !== REG_STATUS_HEADER_) {
+    throw new Error('Column T is already in use. Move that data before enabling registration status.');
+  }
+  if (!current) {
+    sheet.getRange(1, REG_STATUS_COLUMN_).setValue(REG_STATUS_HEADER_);
+  }
+  PropertiesService.getScriptProperties().setProperty('REG_STATUS_SECURITY_ENABLED', '1');
+}
+
+function registrationStatuses_(sheet, rowCount) {
+  if (rowCount < 1) return [];
+  var props = PropertiesService.getScriptProperties();
+  var enabled = props.getProperty('REG_STATUS_SECURITY_ENABLED') === '1';
+  function failClosed_() {
+    var out = [];
+    for (var i = 0; i < rowCount; i++) out.push(['Invalid']);
+    return out;
+  }
+  if (sheet.getMaxColumns() < REG_STATUS_COLUMN_) return enabled ? failClosed_() : [];
+  // A legacy workbook may already use column T for unrelated data. Until the
+  // expected header is present, treat it as an old sheet instead of silently
+  // interpreting that data as security state.
+  var header = String(sheet.getRange(1, REG_STATUS_COLUMN_).getValue() || '').trim();
+  if (header !== REG_STATUS_HEADER_) return enabled ? failClosed_() : [];
+  if (!enabled) props.setProperty('REG_STATUS_SECURITY_ENABLED', '1');
+  return sheet.getRange(2, REG_STATUS_COLUMN_, rowCount, 1).getValues();
+}
+
+function registrationVerified_(status) {
+  var value = String(status || '').trim().toLowerCase();
+  // Blank preserves registrations created before this status column existed.
+  return !value || value === 'verified' || value === 'approved';
+}
+
+function approvedStudentValue_(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
+function approvedStudentMatch_(ss, data) {
+  // This sheet is controlled by the organizer. Public input can only be
+  // compared with it; it cannot select the sheet or supply an approval flag.
+  var approved = ss.getSheetByName(APPROVED_STUDENTS_SHEET_);
+  if (!approved || approved.getLastRow() < 2) return false;
+  var values = approved.getRange(1, 1, approved.getLastRow(), APPROVED_STUDENTS_HEADERS_.length).getValues();
+  var headers = values[0];
+  for (var h = 0; h < APPROVED_STUDENTS_HEADERS_.length; h++) {
+    if (String(headers[h] || '').trim() !== APPROVED_STUDENTS_HEADERS_[h]) return false;
+  }
+  var candidate = [
+    data.name, data.father, data.gender, data.cls, data.district,
+    data.block, data.school, data.village, data.mobile, data.year
+  ].map(approvedStudentValue_);
+  for (var i = 1; i < values.length; i++) {
+    var matched = true;
+    for (var j = 0; j < candidate.length; j++) {
+      if (approvedStudentValue_(values[i][j]) !== candidate[j]) {
+        matched = false;
+        break;
+      }
+    }
+    if (matched) return true;
+  }
+  return false;
+}
+
+/** Admin: create the trusted roster sheet once, then paste approved rows below its header. */
+function setupApprovedStudentsSheet() {
+  var ss = getSpreadsheet_();
+  var sheet = ss.getSheetByName(APPROVED_STUDENTS_SHEET_);
+  if (!sheet) sheet = ss.insertSheet(APPROVED_STUDENTS_SHEET_);
+  var current = sheet.getRange(1, 1, 1, APPROVED_STUDENTS_HEADERS_.length).getValues()[0];
+  var occupied = current.some(function (value) { return String(value || '').trim() !== ''; });
+  var valid = APPROVED_STUDENTS_HEADERS_.every(function (header, index) {
+    return String(current[index] || '').trim() === header;
+  });
+  if (occupied && !valid) throw new Error('Approved Students row 1 is already in use. Move that data before setup.');
+  if (!valid) sheet.getRange(1, 1, 1, APPROVED_STUDENTS_HEADERS_.length).setValues([APPROVED_STUDENTS_HEADERS_]);
+  sheet.setFrozenRows(1);
+  return { ok: true, sheet: APPROVED_STUDENTS_SHEET_ };
+}
+
+function registrationWriteAllowed_(data) {
+  // This helper runs under the script lock. The property-backed global bucket
+  // provides a hard bound even if attacker-controlled cache keys are rotated.
+  var props = PropertiesService.getScriptProperties();
+  var nowSec = Math.floor(Date.now() / 1000);
+  var windowStart = Number(props.getProperty('REG_RATE_WINDOW_START') || 0);
+  var globalCount = Number(props.getProperty('REG_RATE_WINDOW_COUNT') || 0);
+  if (!windowStart || nowSec - windowStart >= REG_GLOBAL_WINDOW_SEC_) {
+    windowStart = nowSec;
+    globalCount = 0;
+  }
+  if (globalCount >= REG_GLOBAL_WINDOW_MAX_) return false;
+
+  var cache = CacheService.getScriptCache();
+  var mobileKey = 'reg-mobile:' + compactKey_(data.mobile);
+  var schoolKey = 'reg-school:' + compactKey_(data.district) + ':' + compactKey_(data.block) + ':' +
+    schoolNormalizeKey_(data.school) + ':' + compactKey_(data.village);
+  var mobileCount = Number(cache.get(mobileKey) || 0);
+  var schoolCount = Number(cache.get(schoolKey) || 0);
+  if (mobileCount >= 3 || schoolCount >= 25) return false;
+  props.setProperty('REG_RATE_WINDOW_START', String(windowStart));
+  props.setProperty('REG_RATE_WINDOW_COUNT', String(globalCount + 1));
+  cache.put(mobileKey, String(mobileCount + 1), 21600);
+  cache.put(schoolKey, String(schoolCount + 1), 600);
+  return true;
 }
 
 function scanMaxRegSerial_(sheet) {
@@ -566,9 +696,14 @@ function submitRegistration(data) {
       var ss = getSpreadsheet_();
       var sheet = getRegistrationSheet_(ss);
       ensureRegistrationHeaders_(sheet);
+      ensureRegistrationStatusColumn_(sheet);
       if (duplicateRegistrationExists_(sheet, data.name, data.father, data.mobile)) {
         return { ok: false, error: 'यह विद्यार्थी पहले से पंजीकृत है / This student is already registered' };
       }
+      if (!registrationWriteAllowed_(data)) {
+        return { ok: false, error: 'बहुत अधिक पंजीकरण प्रयास हुए हैं। कृपया बाद में पुनः प्रयास करें / Too many registration attempts. Please try again later.' };
+      }
+      var initialStatus = approvedStudentMatch_(ss, data) ? 'Verified' : 'Pending';
       var nextNum = nextRegSerial_(sheet);
       var regNo = 'GVP-2026-' + ('00000' + nextNum).slice(-5);
       var omrNo = omrFromSerial_(nextNum);
@@ -588,7 +723,9 @@ function submitRegistration(data) {
         upper_(data.village),
         String(data.mobile).trim(),
         omrNo,
-        ACADEMIC_YEAR
+        ACADEMIC_YEAR,
+        '', '', '', '', '', '',
+        initialStatus
       ]);
       invalidateSchoolsCache_(data.district, data.block);
       return { ok: true, regNo: regNo, omrNo: omrNo };
@@ -723,8 +860,10 @@ function countSchoolStudents_(district, block, school, village, sheet) {
   // G:L so regRowLocation_ can fall back to the pre-migration column
   // position when a row's current-schema District cell is blank.
   var values = sheet.getRange(2, 7, lastRow - 1, 6).getValues();
+  var statuses = registrationStatuses_(sheet, lastRow - 1);
   var n = 0;
   for (var i = 0; i < values.length; i++) {
+    if (!registrationVerified_(statuses[i] && statuses[i][0])) continue;
     var loc = regRowLocation_(values[i][0], values[i][1], values[i][2], values[i][3], values[i][4], values[i][5]);
     if (!loc.school) continue;
     if (district && !locMatch_(loc.district, district)) continue;
@@ -755,11 +894,13 @@ function getSchoolStudents(district, block, school, village, mobile) {
     if (!village) return { ok: false, error: 'Village or city is required / गाँव या शहर लिखें' };
     var locErr = validLocation_(district, block);
     if (locErr) return { ok: false, error: locErr };
-    if (!/^[6-9][0-9]{9}$/.test(mobile) || isFakeMobile_(mobile)) {
+    var validMobile = /^[6-9][0-9]{9}$/.test(mobile) && !isFakeMobile_(mobile);
+    if (!validMobile) {
       return { ok: false, error: 'Enter a registered mobile number to view students / छात्र सूची देखने हेतु पंजीकृत मोबाइल नंबर लिखें' };
     }
 
-    var sheet = getRegistrationSheet_(getSpreadsheet_());
+    var ss = getSpreadsheet_();
+    var sheet = getRegistrationSheet_(ss);
     var lastRow = sheet.getLastRow();
     if (lastRow < 2) return { ok: true, data: [] };
 
@@ -768,9 +909,11 @@ function getSchoolStudents(district, block, school, village, mobile) {
     // returned because schools do not need it for this report.
     var width = Math.min(15, sheet.getMaxColumns());
     var values = sheet.getRange(2, 1, lastRow - 1, width).getValues();
+    var statuses = registrationStatuses_(sheet, lastRow - 1);
     var matched = [];
     var mobileFound = false;
     for (var i = 0; i < values.length; i++) {
+      if (!registrationVerified_(statuses[i] && statuses[i][0])) continue;
       var raw = values[i];
       while (raw.length < 15) raw.push('');
       var row = registrationRow_(raw.slice(2, 15));
@@ -802,12 +945,9 @@ function getSchoolStudents(district, block, school, village, mobile) {
 // district/block, for the site's school-name autocomplete. Returns sorted,
 // de-duplicated names as stored (upper_() at submit time).
 //
-// Cached for SCHOOLS_CACHE_TTL_SEC per district/block combo so repeated
-// autocomplete keystrokes don't rescan the whole registration sheet — the
-// scan cost grows with total registrations, not with how often people type.
-// submitRegistration_ invalidates the exact keys a new row can affect right
-// after it's written, so the cache is never stale for longer than a
-// submission that happens to race a read.
+// Cache helpers are retained for compatibility with older deployments, but
+// status-aware school lists are read live so organizer approval changes take
+// effect immediately.
 var SCHOOLS_CACHE_TTL_SEC = 300;
 
 function schoolsCacheKey_(district, block) {
@@ -833,13 +973,6 @@ function invalidateSchoolsCache_(district, block) {
 }
 
 function getSchools(district, block) {
-  var cache = CacheService.getScriptCache();
-  var key = schoolsCacheKey_(district, block);
-  var cached = cache.get(key);
-  if (cached) {
-    try { return JSON.parse(cached); } catch (e) { /* fall through and recompute */ }
-  }
-
   var sheet = getRegistrationSheet_(getSpreadsheet_());
   var lastRow = sheet.getLastRow();
   var out = [];
@@ -847,8 +980,10 @@ function getSchools(district, block) {
     // G:L so regRowLocation_ can fall back to the pre-migration column
     // position (see its comment) for rows written before the schema shrink.
     var values = sheet.getRange(2, 7, lastRow - 1, 6).getValues();
+    var statuses = registrationStatuses_(sheet, lastRow - 1);
     var seen = {};
     for (var i = 0; i < values.length; i++) {
+      if (!registrationVerified_(statuses[i] && statuses[i][0])) continue;
       var loc = regRowLocation_(values[i][0], values[i][1], values[i][2], values[i][3], values[i][4], values[i][5]);
       var sheetSchool = schoolDisplayName_(loc.school, loc.village);
       if (!sheetSchool) continue;
@@ -864,7 +999,6 @@ function getSchools(district, block) {
     out.sort();
   }
 
-  try { cache.put(key, JSON.stringify(out), SCHOOLS_CACHE_TTL_SEC); } catch (e) { /* best-effort */ }
   return out;
 }
 
@@ -886,8 +1020,10 @@ function getVillages(district, block, school) {
     // G:L so regRowLocation_ can fall back to the pre-migration column
     // position (see its comment) for rows written before the schema shrink.
     var values = sheet.getRange(2, 7, lastRow - 1, 6).getValues();
+    var statuses = registrationStatuses_(sheet, lastRow - 1);
     var seen = {};
     for (var i = 0; i < values.length; i++) {
+      if (!registrationVerified_(statuses[i] && statuses[i][0])) continue;
       var loc = regRowLocation_(values[i][0], values[i][1], values[i][2], values[i][3], values[i][4], values[i][5]);
       if (!loc.school) continue;
       if (district && !locMatch_(loc.district, district)) continue;
@@ -971,8 +1107,9 @@ function computeSchoolBill_(district, block, school, village, ss, registrationSh
   var amountReported = sumSchoolReported_(district, block, school, village, paymentsSheet);
   var amountDue = students * FEE_PER_STUDENT - amountPaid;
   if (amountDue < 0) amountDue = 0;
-  var amountReportable = amountDue - amountReported;
-  if (amountReportable < 0) amountReportable = 0;
+  // Unverified reports are informational only. They must not reserve the
+  // balance and block a legitimate payer before an organizer verifies them.
+  var amountReportable = amountDue;
   var status = 'Due';
   if (students > 0 && amountDue === 0) status = 'Paid';
   else if (amountReported > 0) status = 'Verification pending';
@@ -1118,12 +1255,9 @@ function reportSchoolPayment(data) {
         return { ok: false, error: 'This school is already paid / cleared' };
       }
 
-      // Do not accept reports totalling more than the unpaid balance while
-      // earlier UTRs are still awaiting verification.
+      // Reported rows do not reserve the balance. Only organizer-verified
+      // Paid rows reduce amountDue.
       var reportableAmount = bill.amountReportable;
-      if (reportableAmount <= 0) {
-        return { ok: false, error: 'A payment report is already awaiting verification for this school' };
-      }
       var amount = hasAmount ? parseInt(String(amountRaw).trim(), 10) : reportableAmount;
       if (amount < 1 || amount > reportableAmount) {
         return {
@@ -1190,7 +1324,9 @@ function rebuildSchoolDues() {
     // G:L lets the same row-layout detector used by billing include legacy
     // registrations in the administrative dues rebuild as well.
     var rows = reg.getRange(2, 7, reg.getLastRow() - 1, 6).getValues();
+    var statuses = registrationStatuses_(reg, reg.getLastRow() - 1);
     for (var i = 0; i < rows.length; i++) {
+      if (!registrationVerified_(statuses[i] && statuses[i][0])) continue;
       var loc = regRowLocation_(rows[i][0], rows[i][1], rows[i][2], rows[i][3], rows[i][4], rows[i][5]);
       var v = loc.village;
       var s = schoolDisplayName_(loc.school, v);

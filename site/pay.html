@@ -560,15 +560,13 @@ if(apiReady()){
 }
 
 // Coming straight from a successful registration (see index.html's
-// "goToPaymentBtn"): the district/block/school/village/mobile are all in
-// the URL, so the visitor lands with the bill already loaded and their
-// own student list already verified, instead of retyping everything they
-// just typed on the registration form.
+// "goToPaymentBtn"): non-sensitive school fields are in the URL so the
+// visitor lands with the bill already loaded. Mobile is deliberately not
+// carried in the URL because it is also used as a roster-access credential.
 function applyPayPrefill(){
   var params=new URLSearchParams(window.location.search);
   var pDistrict=params.get('district'), pBlock=params.get('block');
   var pSchool=params.get('school'), pVillage=params.get('village');
-  var pMobile=params.get('mobile');
   if(!pDistrict || !pBlock || !pSchool || !pVillage) return;
 
   districtEl.value=pDistrict;
@@ -581,26 +579,6 @@ function applyPayPrefill(){
   updateSchoolStatusBadge();
 
   $('billBtn').click();
-  if(!pMobile) return;
-
-  if($('quickStudentsBtn')){
-    $('quickStudentsBtn').classList.remove('gvp-pulse');
-    $('quickStudentsBtn').textContent='सूची छुपाएं / Hide student list ▴';
-    $('quickStudentsBtn').setAttribute('aria-expanded','true');
-  }
-  var tries=0;
-  var iv=setInterval(function(){
-    tries++;
-    if(LAST_BILL_FIELDS){
-      clearInterval(iv);
-      updateSchoolStatusBadge();
-      show($('viewStudentsWrap'));
-      $('studentsMobile').value=pMobile.replace(/\s+/g,'').replace(/^[+]?(91|0)(?=[6-9][0-9]{9}$)/,'').trim();
-      loadStudentsList();
-    }else if(tries>40){
-      clearInterval(iv);
-    }
-  },250);
 }
 
 
@@ -1200,7 +1178,7 @@ function loadStudentsList(){
   listEl.innerHTML='<span class="inline-flex items-center gap-2 py-1"><svg class="animate-spin h-4 w-4 text-terra" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg> <span>विद्यार्थी सूची लोड हो रही है… / Loading student list…</span></span>';
   show(listEl);
   var params={district:lookup.district,block:lookup.block,school:lookup.school,village:lookup.village,mobile:mobile};
-  GVP_API.get('getSchoolStudents',params).then(function(res){
+  GVP_API.post('getSchoolStudents',params).then(function(res){
     if(requestId!==STUDENTS_REQUEST_ID) return;
     listEl.innerHTML='';
     if(!res||!res.ok){

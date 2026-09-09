@@ -1207,7 +1207,7 @@ $('submitBtn').addEventListener('click',function(){
       $('regNo').textContent=res.regNo;
       var payParams=new URLSearchParams({
         district:data.district, block:data.block, school:data.school,
-        village:data.village, mobile:data.mobile
+        village:data.village
       });
       $('goToPaymentBtn').href='pay.html?'+payParams.toString();
       var summaryRows=[
