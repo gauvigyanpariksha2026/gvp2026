@@ -758,70 +758,6 @@ a:focus-visible {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center 20%;
-}
-
-.exam-story-copy {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: clamp(25px, 4.5vw, 46px);
-}
-
-.exam-badge {
-  align-self: flex-start;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(68, 108, 77, .11);
-  color: var(--gvp-green);
-  font-size: .77rem;
-  font-weight: 600;
-}
-
-.exam-story-copy h3 {
-  margin-top: 14px;
-  color: #34271e;
-  font-size: clamp(1.25rem, 3vw, 1.72rem);
-  line-height: 1.38;
-  font-weight: 600;
-}
-
-.exam-story-copy > p {
-  margin-top: 10px;
-  color: var(--gvp-muted);
-  font-size: .9rem;
-  line-height: 1.72;
-}
-
-.exam-facts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid rgba(73, 55, 36, .12);
-}
-
-.exam-facts div {
-  min-width: 0;
-  padding: 10px 8px;
-  border-radius: 11px;
-  background: rgba(255,255,255,.56);
-}
-.exam-facts div:nth-child(1) { background: rgba(232, 116, 65, .1); }
-.exam-facts div:nth-child(2) { background: rgba(113, 78, 170, .1); }
-.exam-facts div:nth-child(3) { background: rgba(58, 133, 86, .1); }
-.exam-facts strong {
-  display: block;
-  color: var(--gvp-terracotta-dark);
-  font: 600 1.08rem/1.2 "Cormorant Garamond", Georgia, serif;
-}
-.exam-facts span {
-  display: block;
-  margin-top: 4px;
-  color: var(--gvp-muted);
-  font-size: .69rem;
-  line-height: 1.3;
 }
 
 .exam-info-grid {
@@ -861,8 +797,7 @@ a:focus-visible {
 .violet .exam-info-icon { background: linear-gradient(145deg, #8362bd, #624293); }
 .green .exam-info-icon { background: linear-gradient(145deg, #4c9566, #346f4a); }
 .exam-info-card small,
-.selection-copy small,
-.purpose-heading small {
+.selection-copy small {
   color: #826f60;
   font: 600 .64rem/1.2 "Cormorant Garamond", Georgia, serif;
   letter-spacing: .12em;
@@ -999,121 +934,6 @@ a:focus-visible {
   font-size: .79rem;
   line-height: 1.45;
 }
-.exam-quick-info {
-  display: grid;
-  gap: 8px;
-  margin-top: 19px;
-}
-.exam-quick-info > div {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 11px;
-  border: 1px solid rgba(166,64,37,.14);
-  border-radius: 11px;
-  background: rgba(255,255,255,.6);
-}
-.exam-quick-info > div > span {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 auto;
-  border-radius: 9px;
-  background: #fff0e5;
-  font-size: 1rem;
-}
-.exam-quick-info p { display: grid; gap: 2px; }
-.exam-quick-info strong { color: #4e3528; font-size: .78rem; }
-.exam-quick-info small { color: #806b5d; font-size: .7rem; line-height: 1.35; }
-
-/* Location selection guide */
-.district-guide {
-  display: grid;
-  grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr);
-  align-items: center;
-  gap: 9px;
-  margin-top: 20px;
-  padding: 13px;
-  border: 1px solid rgba(166,64,37,.16);
-  border-radius: 15px;
-  background: linear-gradient(145deg, #fff5ea, #fffdfa);
-}
-.district-guide > div {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  padding: 8px 9px;
-  border-radius: 11px;
-  background: rgba(255,255,255,.68);
-}
-.district-guide > div > span {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 auto;
-  border-radius: 9px;
-  background: #fff0e5;
-  font-size: .95rem;
-}
-.district-guide p { display: grid; gap: 2px; min-width: 0; }
-.district-guide strong { color: #5b392c; font-size: .72rem; }
-.district-guide small { color: #826e62; font-size: .65rem; line-height: 1.35; }
-.district-guide > i { color: #b26a45; font-size: 1.05rem; font-style: normal; }
-
-/* Premium headline fact cards */
-.exam-facts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 9px;
-  margin-top: 21px;
-}
-.exam-facts > div {
-  position: relative;
-  overflow: hidden;
-  min-height: 92px;
-  padding: 14px 7px 12px;
-  border: 1px solid rgba(166,64,37,.17);
-  border-radius: 14px;
-  background: linear-gradient(145deg, #fff8ef, #fffdfa);
-  box-shadow: 0 9px 18px rgba(92,55,31,.07), inset 0 1px rgba(255,255,255,.8);
-}
-.exam-facts > div::after {
-  /* Bottom-right, not top-right: the top-right corner is where the ₹ amount
-     sits, and "₹21,000" was wide enough at this card's width to run under
-     an icon placed there. There's always clear space below the label. */
-  position: absolute;
-  bottom: 7px;
-  right: 7px;
-  opacity: .78;
-  font-size: .95rem;
-}
-.exam-facts > div:nth-child(1)::after { content: "🤝"; }
-.exam-facts > div:nth-child(2)::after { content: "✦"; color: #a64025; }
-.exam-facts > div:nth-child(3)::after { content: "🏆"; }
-.exam-facts > div:nth-child(2) { border-color: rgba(112,78,167,.18); background: linear-gradient(145deg, #f5f0ff, #fffdfa); }
-.exam-facts > div:nth-child(3) { border-color: rgba(190,132,32,.22); background: linear-gradient(145deg, #fff4c9, #fffdfa); }
-.exam-facts strong {
-  display: block;
-  overflow-wrap: break-word;
-  color: #a64025;
-  font-size: 1.25rem;
-  line-height: 1.15;
-  font-variant-numeric: lining-nums proportional-nums;
-}
-.exam-facts > div:nth-child(2) strong { color: #7150a8; }
-.exam-facts > div:nth-child(3) strong { color: #95631a; }
-.exam-facts span { display: block; margin-top: 8px; color: #806b5d; font-size: .68rem; font-weight: 700; line-height: 1.3; }
-/* .exam-story pins the poster column to 260-320px at every width from here
-   up (see the "compact poster thumbnail" rule below), which squeezes this
-   3-column fact grid down to ~50px per card — too narrow for "₹21,000" at
-   1.25rem, so it overflowed and got clipped by this card's overflow:hidden.
-   Shrink it back down whenever that two-column layout is active. */
-@media (min-width: 640px) {
-  .exam-facts strong { font-size: .96rem; }
-}
 
 /* Infographic treatment for payment journey and guide cards. */
 .payment-flow {
@@ -1208,96 +1028,6 @@ a:focus-visible {
 .reward-list p:last-child { border-bottom: 0; }
 .reward-list span { color: var(--gvp-muted); }
 .reward-list strong { color: #49392d; text-align: right; }
-
-.exam-purpose-card {
-  margin-top: 16px;
-  padding: 22px;
-  border: 1px solid rgba(180, 74, 49, .18);
-  border-radius: 17px;
-  color: #fff9f1;
-  background: radial-gradient(circle at 90% 12%, rgba(255,210,130,.2), transparent 16rem), linear-gradient(135deg, #9d3826, #c46132 56%, #9b512b);
-  box-shadow: 0 13px 28px rgba(157, 56, 38, .18);
-}
-.purpose-heading { display: flex; align-items: center; gap: 11px; }
-.purpose-heading > span {
-  display: grid;
-  place-items: center;
-  width: 35px;
-  height: 35px;
-  border-radius: 50%;
-  color: #8d3e22;
-  background: #ffe1a9;
-}
-.purpose-heading small { color: rgba(255,255,255,.65); }
-.purpose-heading h3 { margin-top: 3px; font-size: 1rem; font-weight: 600; }
-.purpose-points { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px 16px; margin-top: 17px; }
-.purpose-points p {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  padding: 10px 11px;
-  border: 1px solid rgba(255,255,255,.12);
-  border-radius: 11px;
-  background: rgba(255,255,255,.08);
-}
-.purpose-points b { color: #ffd894; font: 600 .68rem/1.5 "Cormorant Garamond", Georgia, serif; }
-.purpose-points span { color: rgba(255,255,255,.82); font-size: .72rem; line-height: 1.52; }
-
-.exam-contact-strip {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  margin-top: 16px;
-  padding: 18px 20px;
-  border-radius: 15px;
-  color: #eef7ee;
-  background: radial-gradient(circle at 88% 0, rgba(255,255,255,.13), transparent 11rem), linear-gradient(135deg, #315f43, #4c825d);
-  box-shadow: 0 12px 26px rgba(49, 95, 67, .16);
-}
-.exam-contact-strip > div:first-child { display: grid; gap: 3px; }
-.exam-contact-strip strong { font-size: .88rem; }
-.exam-contact-strip span { color: rgba(255,255,255,.73); font-size: .72rem; line-height: 1.45; }
-.exam-contact-strip > div:first-child small { color: rgba(255,255,255,.58); font-size: .66rem; line-height: 1.45; }
-.exam-phone-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); flex: 1; max-width: 430px; gap: 8px; }
-.exam-phone-links a {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-  padding: 10px 11px;
-  border: 1px solid rgba(255,255,255,.18);
-  border-radius: 11px;
-  color: #fff;
-  background: rgba(255,255,255,.08);
-  transition: transform .2s ease, background-color .2s ease, border-color .2s ease;
-}
-.exam-phone-links a:hover { transform: translateY(-3px); background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.34); }
-.exam-phone-links small { color: rgba(255,255,255,.62); font-size: .6rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
-.exam-phone-links strong { font-family: "Noto Serif Devanagari", Georgia, serif; font-size: .81rem; line-height: 1.2; white-space: nowrap; }
-.exam-phone-links span { color: rgba(255,255,255,.62); font: 600 .62rem/1 "Cormorant Garamond", Georgia, serif; letter-spacing: .08em; text-transform: uppercase; }
-
-.contact-phone-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 9px;
-  margin-top: 17px;
-}
-.contact-phone-grid a {
-  display: grid;
-  gap: 4px;
-  padding: 12px 13px;
-  border: 1px solid rgba(112,78,167,.18);
-  border-radius: 12px;
-  color: #4c3c52;
-  background: rgba(255,255,255,.72);
-  box-shadow: 0 7px 16px rgba(70,50,90,.07);
-  transition: transform .2s ease, box-shadow .2s ease;
-}
-.contact-phone-grid a:hover { transform: translateY(-3px); box-shadow: 0 13px 23px rgba(70,50,90,.12); }
-.contact-phone-grid small { color: #88759a; font-size: .6rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
-.contact-phone-grid strong { color: #50366e; font-family: "Noto Serif Devanagari", Georgia, serif; font-size: .87rem; white-space: nowrap; }
-.contact-phone-grid span { color: #9b7991; font: 700 .62rem/1 "Cormorant Garamond", Georgia, serif; letter-spacing: .08em; text-transform: uppercase; }
-}
 
 .callout { border-left-color: var(--gvp-terracotta) !important; }
 .date-pill { white-space: nowrap; }
@@ -1458,7 +1188,6 @@ p,
 .hint,
 .form-note,
 .group-note,
-.exam-story-copy > p,
 .exam-info-card p,
 .learning-heading p:not(.form-kicker) {
   color: #5c4c40;
@@ -1551,8 +1280,7 @@ select.inp {
 .form-kicker,
 .sec-en,
 .exam-info-card small,
-.selection-copy small,
-.purpose-heading small {
+.selection-copy small {
   font-weight: 700;
 }
 
@@ -1940,21 +1668,12 @@ body main.rounded-b-2xl > #payForm { background: linear-gradient(145deg, #eaf7ed
   .exam-story { grid-template-columns: 1fr; }
   .exam-poster-frame { min-height: 0; height: 220px; }
   .exam-poster-frame img { object-position: center 25%; }
-  .exam-story-copy { padding: 23px 19px; }
-  .exam-facts { gap: 6px; }
-  .exam-facts strong { font-size: .96rem; }
   .exam-detail-grid { grid-template-columns: 1fr; }
   .exam-info-card { padding: 16px 14px; }
   .selection-card { gap: 15px; padding: 17px; }
   .selection-rules { grid-template-columns: 1fr 1fr; }
   .timeline-card, .rewards-card { padding: 18px 16px; }
   .exam-timeline li { grid-template-columns: 112px minmax(0, 1fr); gap: 10px; }
-  .exam-purpose-card { padding: 18px 16px; }
-  .purpose-points { grid-template-columns: 1fr; gap: 7px; }
-  .exam-contact-strip { align-items: flex-start; flex-direction: column; padding: 17px; }
-  .exam-phone-links { grid-template-columns: 1fr; width: 100%; max-width: none; }
-  .exam-phone-links a { grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; }
-  .contact-phone-grid { grid-template-columns: 1fr; }
   .hero-poster { width: 100% !important; max-width: 310px !important; }
   .info-table { font-size: .82rem !important; }
   .info-table td { padding-block: .65rem !important; }
@@ -2398,8 +2117,6 @@ main section.form-step-card:hover,
 }
 
 @media (max-width: 639px) {
-  .district-guide { grid-template-columns: 1fr; gap: 5px; }
-  .district-guide > i { justify-self: center; transform: rotate(90deg); }
   /* The later "Matched key-dates timeline" pass forces exam-detail-grid to
      two columns with !important, which otherwise wins over the earlier
      single-column mobile rule regardless of source order. Re-assert it here

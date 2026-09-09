@@ -103,37 +103,8 @@ select.inp:disabled{
 @keyframes gvpPulse{0%{opacity:.9;transform:scale(.5)}70%{opacity:.15}100%{opacity:0;transform:scale(1.7)}}
 .done-item{opacity:0}
 .thanks-note{margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid rgba(184,135,59,.3);font-size:.9rem;line-height:1.7;color:rgba(46,32,19,.75)}
-
-/* ---------- image gallery + exam-info decoration (theme colors unchanged) ---------- */
-.gallery-scroll{display:flex;gap:1rem;overflow-x:auto;padding:.25rem .25rem 1rem;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
-.gallery-scroll img{height:300px;width:auto;max-width:80vw;border-radius:.75rem;border:1px solid rgba(184,135,59,.35);box-shadow:0 4px 16px rgba(46,32,19,.12);scroll-snap-align:start;flex:0 0 auto;transition:transform .2s cubic-bezier(.4,0,.2,1)}
-.gallery-scroll img:hover{transform:translateY(-4px)}
-.gallery-scroll::-webkit-scrollbar{height:8px}
-.gallery-scroll::-webkit-scrollbar-track{background:rgba(184,135,59,.12);border-radius:9999px}
-.gallery-scroll::-webkit-scrollbar-thumb{background:rgba(169,75,44,.4);border-radius:9999px}
-.hero-poster{display:block;max-width:340px;width:80%;margin:0 auto 1.5rem;border-radius:1rem;border:1px solid rgba(184,135,59,.35);box-shadow:0 6px 20px rgba(46,32,19,.15)}
-.info-table{width:100%;border-collapse:collapse;font-size:.9rem}
-.info-table td{padding:.55rem .25rem;border-bottom:1px solid rgba(184,135,59,.2);vertical-align:top}
-.info-table tr:last-child td{border-bottom:none}
-.info-table td:first-child{color:rgba(46,32,19,.65);white-space:nowrap;padding-right:1rem}
-.info-table td:last-child{font-weight:500;text-align:right}
-.prize-card{border:1px solid rgba(184,135,59,.35);border-radius:.75rem;padding:1rem;background:rgba(250,243,230,.6)}
 .contact-line{display:flex;align-items:center;gap:.5rem;font-size:.9rem;color:rgba(46,32,19,.8)}
 
-/* ---------- colorful exam-info touches + payment banner (same palette, more contrast) ---------- */
-.callout{background:linear-gradient(135deg,rgba(184,135,59,.14),rgba(169,75,44,.08));border-left:4px solid #A94B2C;border-radius:.5rem;padding:1rem 1.25rem}
-.date-pill{display:inline-block;border-radius:9999px;background:rgba(169,75,44,.12);color:#A94B2C;font-weight:600;padding:.3rem .8rem;font-size:.85rem;white-space:nowrap}
-.prize-card.gold{background:rgba(184,135,59,.1);border-color:rgba(184,135,59,.45)}
-.prize-card.tulsi{background:rgba(74,108,66,.1);border-color:rgba(74,108,66,.45)}
-.info-icon{display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;border-radius:9999px;margin-right:.5rem;flex-shrink:0;font-size:1rem}
-.info-icon.terra{background:rgba(169,75,44,.15);color:#A94B2C}
-.info-icon.gold{background:rgba(184,135,59,.18);color:#8a6423}
-.info-icon.tulsi{background:rgba(74,108,66,.15);color:#4A6C42}
-.payment-banner{display:flex;align-items:center;justify-content:space-between;gap:1rem;border-radius:1rem;padding:1rem 1.5rem;margin-top:1.25rem;background:linear-gradient(135deg,#A94B2C,#8a6423);color:#faf3e6;box-shadow:0 6px 18px rgba(169,75,44,.35);transition:transform .18s cubic-bezier(.4,0,.2,1),box-shadow .18s cubic-bezier(.4,0,.2,1)}
-.payment-banner:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(169,75,44,.45)}
-.payment-banner .pb-title{font-weight:600;font-size:1rem}
-.payment-banner .pb-sub{font-size:.8rem;opacity:.85;margin-top:.15rem}
-.payment-banner .pb-arrow{font-size:1.25rem;flex-shrink:0}
 
 /* ---------- quick student list banner card ---------- */
 .quick-students-card{display:flex;flex-direction:column;gap:1.1rem;padding:1.35rem 1.4rem;margin:1.75rem 0 2rem;border-radius:1rem;border:1px solid rgba(74,108,66,.35);background:linear-gradient(135deg,rgba(74,108,66,.09),rgba(243,232,210,.75));box-shadow:0 3px 12px rgba(46,32,19,.04)}
