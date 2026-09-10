@@ -40,8 +40,9 @@ var REG_HEADERS_ = [
   'District', 'Block', 'School', 'Village', 'Mobile', 'OMR Roll', 'Year'
 ];
 // Column T is deliberately outside both the current (A:M) and legacy (A:R)
-// registration layouts. Existing blank rows remain trusted for compatibility;
-// new public submissions stay Pending until an organizer marks them Verified.
+// registration layouts. Registrations are counted immediately (blank status);
+// an organizer can still set this to Pending/Verified manually in the sheet
+// to hold a specific row back from bills/student lists if needed.
 var REG_STATUS_COLUMN_ = 20;
 var REG_STATUS_HEADER_ = 'Registration Status';
 var REG_GLOBAL_WINDOW_SEC_ = 600;
@@ -823,7 +824,7 @@ function submitRegistration(data) {
       if (!registrationWriteAllowed_(data)) {
         return { ok: false, error: 'बहुत अधिक पंजीकरण प्रयास हुए हैं। कृपया बाद में पुनः प्रयास करें / Too many registration attempts. Please try again later.' };
       }
-      var initialStatus = 'Pending';
+      var initialStatus = '';
       var nextNum = nextRegSerial_(sheet);
       var regNo = 'GVP-2026-' + ('00000' + nextNum).slice(-5);
       var omrNo = omrFromSerial_(nextNum);

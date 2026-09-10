@@ -76,10 +76,11 @@ deployment:
 
 - Open the site, select a district/block, submit a test registration, and
   confirm a new row appears in your Google Sheet's registration tab.
-- New online registrations are automatically initialized as **Pending** in
-  column T (**Registration Status**) for organizer review and verification.
-  Existing rows with a blank status remain treated as verified for backward
-  compatibility.
+- New online registrations count immediately (column T, **Registration
+  Status**, starts blank, which is treated as verified). An organizer can
+  still manually set a row's status to **Pending** in the sheet to hold it
+  out of bills/student lists, or **Verified**/**Approved** to explicitly
+  include it.
 - Open `pay.html`, select the same district/block/school, click **See
   amount**, and confirm it shows the right student count and fee.
 - Open **View registered students**, verify with a mobile number belonging to
