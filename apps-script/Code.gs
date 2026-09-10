@@ -662,13 +662,30 @@ function registrationStatuses_(sheet, rowCount, startRow) {
     for (var i = 0; i < rowCount; i++) out.push(['Invalid']);
     return out;
   }
-  if (sheet.getMaxColumns() < REG_STATUS_COLUMN_) return enabled ? failClosed_() : [];
-  // A legacy workbook may already use column T for unrelated data. Until the
-  // expected header is present, treat it as an old sheet instead of silently
-  // interpreting that data as security state.
+  if (!enabled) {
+    if (sheet.getMaxColumns() < REG_STATUS_COLUMN_) return [];
+    var freshHeader = String(sheet.getRange(1, REG_STATUS_COLUMN_).getValue() || '').trim();
+    if (freshHeader !== REG_STATUS_HEADER_) return [];
+    props.setProperty('REG_STATUS_SECURITY_ENABLED', '1');
+    return sheet.getRange(startRow, REG_STATUS_COLUMN_, rowCount, 1).getValues();
+  }
+  // Once this sheet has ever had a real "Registration Status" column, a
+  // missing or blank column T is almost always an accidental edit (the
+  // column deleted, or just its header cell cleared) rather than a legacy
+  // workbook's unrelated data reappearing — self-heal by recreating the
+  // header instead of treating every row on the sheet as unverified, which
+  // otherwise zeroes out every school's bill and student list at once from
+  // a single cleared cell. A column T that instead holds some OTHER,
+  // non-blank text is left untouched and still fails closed: that is the
+  // legacy-data scenario this check exists to protect against.
+  var missing = REG_STATUS_COLUMN_ - sheet.getMaxColumns();
+  if (missing > 0) sheet.insertColumnsAfter(sheet.getMaxColumns(), missing);
   var header = String(sheet.getRange(1, REG_STATUS_COLUMN_).getValue() || '').trim();
-  if (header !== REG_STATUS_HEADER_) return enabled ? failClosed_() : [];
-  if (!enabled) props.setProperty('REG_STATUS_SECURITY_ENABLED', '1');
+  if (!header) {
+    sheet.getRange(1, REG_STATUS_COLUMN_).setValue(REG_STATUS_HEADER_);
+    header = REG_STATUS_HEADER_;
+  }
+  if (header !== REG_STATUS_HEADER_) return failClosed_();
   return sheet.getRange(startRow, REG_STATUS_COLUMN_, rowCount, 1).getValues();
 }
 

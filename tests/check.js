@@ -146,11 +146,48 @@ assert.equal(context.registrationVerified_('Rejected'), false);
 assert.equal(context.registrationVerified_('unexpected'), false);
 assert.equal(context.registrationVerified_(''), true);
 assert.equal(securityProperties.get('REG_STATUS_SECURITY_ENABLED'), '1');
-const damagedStatusSheet = {
-  getMaxColumns: () => 19,
-  getLastRow: () => 2
-};
-assert.deepEqual(JSON.parse(JSON.stringify(context.registrationStatuses_(damagedStatusSheet, 1))), [['Invalid']]);
+
+// registrationStatuses_ self-healing: once the security flag is already
+// on, a missing/blank column T is treated as an accidental edit and
+// repaired in place, rather than zeroing out every school at once. A
+// column T holding some OTHER non-blank text is left untouched and still
+// fails closed — that is the legacy-workbook scenario the check exists for.
+function makeSelfHealSheet(maxColumns, header, dataValues) {
+  const state = { maxColumns, header, data: dataValues.slice() };
+  return {
+    __state: state,
+    getMaxColumns: () => state.maxColumns,
+    getLastRow: () => state.data.length + 1,
+    insertColumnsAfter: (after, count) => { state.maxColumns += count; },
+    getRange(row, col, numRows) {
+      if (numRows === undefined) {
+        return { getValue: () => state.header, setValue: (v) => { state.header = v; } };
+      }
+      return { getValues: () => state.data.map((v) => [v]) };
+    }
+  };
+}
+const missingColumnSheet = makeSelfHealSheet(19, '', ['', '']);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(context.registrationStatuses_(missingColumnSheet, 2))),
+  [[''], ['']]
+);
+assert.equal(missingColumnSheet.__state.header, 'Registration Status');
+assert.ok(missingColumnSheet.__state.maxColumns >= 20);
+
+const blankHeaderSheet = makeSelfHealSheet(20, '', ['Verified']);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(context.registrationStatuses_(blankHeaderSheet, 1))),
+  [['Verified']]
+);
+assert.equal(blankHeaderSheet.__state.header, 'Registration Status');
+
+const unrelatedColumnSheet = makeSelfHealSheet(20, 'Notes', ['anything']);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(context.registrationStatuses_(unrelatedColumnSheet, 1))),
+  [['Invalid']]
+);
+assert.equal(unrelatedColumnSheet.__state.header, 'Notes');
 assert.equal(context.UTILITY_SHEETS_['Payments'], true);
 assert.equal(context.UTILITY_SHEETS_['School Dues'], true);
 assert.equal(context.UTILITY_SHEETS_['Errors'], true);
