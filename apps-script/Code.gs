@@ -458,6 +458,16 @@ function schoolNormalizeKey_(s) {
   var out = [];
   for (var k = 0; k < words.length; k++) {
     var w = words[k];
+    // "Government" is misspelled often enough in this data (a dropped or
+    // transposed letter — "Goverment", "Govermnet", "Govenment") that an
+    // exact synonym-table lookup silently fragments a school's roster
+    // across spellings. A close (<=3 edit) match to the full word covers
+    // that; the length-8 floor keeps this from ever catching a shorter,
+    // unrelated word in the table.
+    if (!SCHOOL_ABBR_EXPAND_[w] && !SCHOOL_WORD_SYNONYMS_[w] &&
+        w.length >= 8 && levenshtein_(w, 'government') <= 3) {
+      w = 'government';
+    }
     var expanded = SCHOOL_ABBR_EXPAND_[w] || [SCHOOL_WORD_SYNONYMS_[w] || w];
     expanded.forEach(function (word) {
       // GSSS expands to "... school"; an immediately following literal

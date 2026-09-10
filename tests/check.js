@@ -304,6 +304,14 @@ assert.equal(context.schoolMatch_('G.S.S.SCHOOL PADWA', 'GSSS PADWA'), true);
 assert.equal(context.schoolMatch_('Govt Girls Sr Sec School Kotri', 'GGSS Kotri'), true);
 assert.equal(context.schoolMatch_('Govt Boys Sr Sec School Kotri', 'GBSS Kotri'), true);
 
+// "Government" typos (dropped/transposed letter) must not fragment a
+// school's roster into separate spellings — a genuinely different long
+// word should NOT get pulled in by the same fuzzy match.
+assert.equal(context.schoolMatch_('Goverment Senior Secondary School Padwa', 'Government Senior Secondary School Padwa'), true);
+assert.equal(context.schoolMatch_('Govermnet Senior Secondary School Padwa', 'Government Senior Secondary School Padwa'), true);
+assert.equal(context.schoolMatch_('Govenment Senior Secondary School Padwa', 'Government Senior Secondary School Padwa'), true);
+assert.equal(context.schoolMatch_('Generation Senior Secondary School Padwa', 'Government Senior Secondary School Padwa'), false);
+
 // PM-SHRI Scheme prefix tolerance:
 assert.equal(context.schoolMatch_('PM SHRI GSSS JAWADA', 'GSSS JAWADA'), true);
 assert.equal(context.schoolMatch_('GSSS JAWADA', 'PM SHRI GSSS JAWADA'), true);
