@@ -330,6 +330,17 @@ assert.equal(context.locMatch_('Chhoti Sadri', 'Choti Sadri'), true);
 assert.equal(context.locMatch_('Jawada', 'Jawaja'), false);
 assert.equal(context.locMatch_('Asind', 'Amet'), false);
 
+// A generic "village" filler word carries no identity of its own, so
+// "Padwa", "Gao Padwa", "Gaon Padwa", "Gram Padwa" and "Village Padwa"
+// must all key the same place — while a real place name that merely
+// starts with those letters ("Gaonri") must stay distinct.
+assert.equal(context.locMatch_('Padwa', 'Gao Padwa'), true);
+assert.equal(context.locMatch_('Padwa', 'Gaon Padwa'), true);
+assert.equal(context.locMatch_('Padwa', 'Gram Padwa'), true);
+assert.equal(context.locMatch_('Padwa', 'Village Padwa'), true);
+assert.equal(context.locMatch_('Gao Padwa', 'Gaon Padwa'), true);
+assert.equal(context.locMatch_('Padwa', 'Gaonri'), false);
+
 // Short village collision safeguards in villageSimilar_:
 assert.equal(context.villageSimilar_('Bor', 'Mor'), false);
 assert.equal(context.villageSimilar_('Bor', 'Dor'), false);

@@ -258,6 +258,13 @@ function locationKey_(s) {
     .replace(/\biii\b/g, '3')
     .replace(/\bii\b/g, '2')
     .replace(/\bi\b/g, '1');
+  // A generic Hindi/English "village" filler word is often written right
+  // next to the actual place name ("Gao Padwa", "Gaon Padwa", "Gram
+  // Padwa", "Village Padwa") and carries no identifying information of
+  // its own, so drop it before keying. Only whole standalone words are
+  // stripped (word-boundary matched), never a substring, so a real place
+  // name that happens to start the same way (e.g. "Gaonri") is untouched.
+  raw = raw.replace(/\b(gao|gaon|gram|village|vill)\b/g, ' ');
   return phoneticKey_(raw);
 }
 
