@@ -1121,6 +1121,24 @@ function isGenericSchoolName(s){
   if(!words.length) return false;
   return words.every(function(w){ return GENERIC_SCHOOL_WORDS_[w]; });
 }
+// Real registrations have shown up with "Village" (or "City"/"Gaon"/"Town")
+// typed literally as the answer instead of an actual place name — read as
+// an instruction rather than a question. These carry no identifying
+// information, so unlike a spelling-drift typo they can never be
+// safely reconciled with a real village after the fact; block at
+// submission instead.
+var PLACEHOLDER_VILLAGE_WORDS_={
+  village:1,town:1,city:1,gaon:1,gao:1,gram:1,place:1,area:1,location:1,address:1,
+  na:1,none:1,nil:1,test:1,xx:1,xxx:1,sample:1,demo:1
+};
+function isPlaceholderVillage(s){
+  var words=String(s||'').toLowerCase().trim().split(/[^a-z0-9]+/).filter(function(w){return w;});
+  if(!words.length) return false;
+  return words.every(function(w){ return PLACEHOLDER_VILLAGE_WORDS_[w]; });
+}
+function compactLower_(s){
+  return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+}
 // Mirrors isFakeMobile_ in Code.gs: catches a placeholder number (all one
 // digit, or a straight ascending/descending run of digits) before the round
 // trip to the server, so a student sees the problem while still on the form.
@@ -1185,6 +1203,9 @@ function submitRegistration(event){
   if(data.father && !NAME_EN.test(data.father)){errs.push('पिता का नाम अंग्रेज़ी में लिखें / Write father\'s name in English');bad($('father'));}
   if(data.school && !PLACE_EN.test(data.school)){errs.push('विद्यालय का नाम अंग्रेज़ी में लिखें / Write school name in English');bad($('school'));}
   if(data.village && !PLACE_EN.test(data.village)){errs.push('गाँव / शहर अंग्रेज़ी में लिखें / Write village or city in English');bad($('village'));}
+  else if(data.village && isPlaceholderVillage(data.village)){errs.push('कृपया अपने गाँव/शहर का असली नाम लिखें, "Village" जैसा सामान्य शब्द नहीं / Enter your actual village or city name, not a generic word like "Village"');bad($('village'));}
+  if(data.school && data.village && compactLower_(data.school)===compactLower_(data.village)){errs.push('विद्यालय का नाम गाँव/शहर के नाम जैसा नहीं हो सकता — विद्यालय का पूरा नाम लिखें / School name can\'t be the same as the village/city — enter the full school name');bad($('school'));}
+  else if(data.school && data.district && compactLower_(data.school)===compactLower_(data.district)){errs.push('विद्यालय के स्थान पर जिले का नाम न लिखें — विद्यालय का पूरा नाम लिखें / Don\'t enter the district name as the school name — enter the full school name');bad($('school'));}
   if(!/^[6-9][0-9]{9}$/.test(data.mobile)){errs.push('मोबाइल नंबर सही नहीं है');bad($('mobile'));}
   else if(isFakeMobile(data.mobile)){errs.push('असली मोबाइल नंबर लिखें, प्लेसहोल्डर नहीं / Enter a real mobile number, not a placeholder');bad($('mobile'));}
   if(!data.declare) errs.push('घोषणा स्वीकार करें');
