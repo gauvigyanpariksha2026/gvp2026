@@ -349,9 +349,16 @@ var SCHOOL_ABBR_EXPAND_ = {
   gsss: ['govt', 'sr', 'sec', 'school'],
   ggsss: ['govt', 'girls', 'sr', 'sec', 'school'],
   gbsss: ['govt', 'boys', 'sr', 'sec', 'school'],
-  gss: ['govt', 'sec', 'school'],
-  ggss: ['govt', 'girls', 'sec', 'school'],
-  gbss: ['govt', 'boys', 'sec', 'school'],
+  // GSS (3 letters) is treated the same as GSSS (4 letters) rather than
+  // its own literal "Govt Sec School" reading: in practice this data set
+  // almost never has a real, distinct non-senior "Govt Sec School" sharing
+  // a place name with a "Govt Sr Sec School" — GSS is overwhelmingly a
+  // dropped-S shorthand for GSSS written by a different parent for the
+  // same school, and a roster fragmented across the two spellings was the
+  // more common real-world failure than the rare genuine GSS/GSSS collision.
+  gss: ['govt', 'sr', 'sec', 'school'],
+  ggss: ['govt', 'girls', 'sr', 'sec', 'school'],
+  gbss: ['govt', 'boys', 'sr', 'sec', 'school'],
   gups: ['govt', 'up', 'pri', 'school'],
   ggups: ['govt', 'girls', 'up', 'pri', 'school'],
   gbups: ['govt', 'boys', 'up', 'pri', 'school'],

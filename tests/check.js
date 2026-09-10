@@ -296,6 +296,14 @@ assert.equal(context.schoolNormalizeKey_('Rajkiya Balika Uchh Madhyamik Vidyalay
 assert.equal(context.schoolNormalizeKey_('Raubamavi Kotri'), ggsssKotriKey);
 assert.equal(context.schoolNormalizeKey_('R.B.U.M.V. Kotri'), ggsssKotriKey);
 
+// GSS (3-letter) is treated the same as GSSS (4-letter) — a dropped-S
+// shorthand for "Govt Sr Sec School" is far more common in this data than a
+// genuine, distinct non-senior "Govt Sec School" sharing a place name.
+assert.equal(context.schoolMatch_('Government Senior Secondary School Padwa', 'G.S.S.SCHOOL PADWA'), true);
+assert.equal(context.schoolMatch_('G.S.S.SCHOOL PADWA', 'GSSS PADWA'), true);
+assert.equal(context.schoolMatch_('Govt Girls Sr Sec School Kotri', 'GGSS Kotri'), true);
+assert.equal(context.schoolMatch_('Govt Boys Sr Sec School Kotri', 'GBSS Kotri'), true);
+
 // PM-SHRI Scheme prefix tolerance:
 assert.equal(context.schoolMatch_('PM SHRI GSSS JAWADA', 'GSSS JAWADA'), true);
 assert.equal(context.schoolMatch_('GSSS JAWADA', 'PM SHRI GSSS JAWADA'), true);
