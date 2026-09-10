@@ -312,6 +312,38 @@ assert.equal(context.schoolMatch_('Govermnet Senior Secondary School Padwa', 'Go
 assert.equal(context.schoolMatch_('Govenment Senior Secondary School Padwa', 'Government Senior Secondary School Padwa'), true);
 assert.equal(context.schoolMatch_('Generation Senior Secondary School Padwa', 'Government Senior Secondary School Padwa'), false);
 
+// The same typo tolerance generalizes to every spelled-out boilerplate word
+// in the synonym table, not just "government" — a one-off patch per word
+// as each gets reported would never keep up with real registration data.
+assert.equal(context.schoolMatch_('Govt Seconday School Padwa', 'Govt Secondary School Padwa'), true);
+assert.equal(context.schoolMatch_('Govt Scondary School Padwa', 'Govt Secondary School Padwa'), true);
+assert.equal(context.schoolMatch_('Govt Senoir Sec School Padwa', 'Govt Senior Sec School Padwa'), true);
+assert.equal(context.schoolMatch_('Govt Sr Sec Shool Padwa', 'Govt Sr Sec School Padwa'), true);
+assert.equal(context.schoolMatch_('Govt Primry School Padwa', 'Govt Primary School Padwa'), true);
+assert.equal(context.schoolMatch_('Govt Sr Sec School Girsl Padwa', 'Govt Sr Sec School Girls Padwa'), true);
+// A short, genuinely different word must never get swept up by the fuzzy
+// fallback — only 4+ letter spelled-out forms are eligible targets.
+assert.equal(context.schoolMatch_('Sr Sec School Padwa', 'Up Pri School Padwa'), false);
+assert.equal(context.schoolMatch_('Govt Boys School Padwa', 'Govt Girls School Padwa'), false);
+
+// Self-check: no two genuinely different canonical words in the synonym
+// table are ever within each other's fuzzy-typo threshold — every word
+// this fallback ever matches against must be a safe, same-target variant.
+// This guards the table itself as new entries get added over time.
+(function () {
+  var canon = context.SCHOOL_WORD_CANON_;
+  var synonyms = context.SCHOOL_WORD_SYNONYMS_;
+  for (var i = 0; i < canon.length; i++) {
+    for (var j = i + 1; j < canon.length; j++) {
+      var a = canon[i], b = canon[j];
+      if (synonyms[a] === synonyms[b]) continue; // same target: safe to be close
+      var maxDist = Math.min(context.schoolWordTypoMaxDist_(a.length), context.schoolWordTypoMaxDist_(b.length));
+      var d = context.levenshtein_(a, b);
+      assert.ok(d > maxDist, 'Fuzzy school-word table has an unsafe collision: "' + a + '" vs "' + b + '" (dist ' + d + ', threshold ' + maxDist + ')');
+    }
+  }
+})();
+
 // PM-SHRI Scheme prefix tolerance:
 assert.equal(context.schoolMatch_('PM SHRI GSSS JAWADA', 'GSSS JAWADA'), true);
 assert.equal(context.schoolMatch_('GSSS JAWADA', 'PM SHRI GSSS JAWADA'), true);

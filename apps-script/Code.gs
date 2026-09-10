@@ -418,6 +418,40 @@ var SCHOOL_WORD_SYNONYMS_ = {
   model: 'model'
 };
 
+// Every distinct word ever typed for the same boilerplate concept ("school",
+// "senior", "government", ...) is not something a fixed spelling table can
+// keep up with — parents and clerks drop or swap a letter often enough
+// (Goverment, Govermnet, Seconday, Scondary, Midle) that treating each typo
+// as a brand-new, never-before-seen word silently fragments one school's
+// roster across spellings, the same way GSS/GSSS did. This falls back to
+// the closest canonical word (by edit distance) only for words the exact
+// table missed, and only among words with a real spelled-out form (4+
+// letters) — the short abbreviated forms (sr, sec, pri, up, mid, ...) are
+// deliberately excluded as fuzzy *targets* since a 1-letter difference
+// between two short, different words is far too easy to hit by accident.
+// The threshold grows with word length because a fixed edit count is a much
+// bigger fraction of a short word (more likely to accidentally cross into a
+// different real word) than of a long one. Checked once for the whole
+// table (tests/check.js) to confirm no two *different* canonical words are
+// ever within each other's threshold — every hit found is already a
+// same-target spelling variant that is safe to add.
+var SCHOOL_WORD_CANON_ = Object.keys(SCHOOL_WORD_SYNONYMS_).filter(function (w) { return w.length >= 4; });
+function schoolWordTypoMaxDist_(len) {
+  return len >= 9 ? 3 : len >= 6 ? 2 : len >= 4 ? 1 : 0;
+}
+function fuzzySchoolWord_(w) {
+  if (w.length < 4 || SCHOOL_ABBR_EXPAND_[w] || SCHOOL_WORD_SYNONYMS_[w]) return w;
+  var best = w, bestDist = Infinity;
+  for (var i = 0; i < SCHOOL_WORD_CANON_.length; i++) {
+    var canon = SCHOOL_WORD_CANON_[i];
+    if (Math.abs(canon.length - w.length) > schoolWordTypoMaxDist_(Math.max(canon.length, w.length))) continue;
+    var maxDist = Math.min(schoolWordTypoMaxDist_(canon.length), schoolWordTypoMaxDist_(w.length));
+    var d = levenshtein_(w, canon);
+    if (d <= maxDist && d < bestDist) { bestDist = d; best = canon; }
+  }
+  return best;
+}
+
 // School-name-only matching key: expands known abbreviations and collapses
 // common spelling variants (govt/government, sr/senior, sec/secondary, ...)
 // before compacting, so abbreviation vs. spelled-out names of the same
@@ -464,17 +498,7 @@ function schoolNormalizeKey_(s) {
 
   var out = [];
   for (var k = 0; k < words.length; k++) {
-    var w = words[k];
-    // "Government" is misspelled often enough in this data (a dropped or
-    // transposed letter — "Goverment", "Govermnet", "Govenment") that an
-    // exact synonym-table lookup silently fragments a school's roster
-    // across spellings. A close (<=3 edit) match to the full word covers
-    // that; the length-8 floor keeps this from ever catching a shorter,
-    // unrelated word in the table.
-    if (!SCHOOL_ABBR_EXPAND_[w] && !SCHOOL_WORD_SYNONYMS_[w] &&
-        w.length >= 8 && levenshtein_(w, 'government') <= 3) {
-      w = 'government';
-    }
+    var w = fuzzySchoolWord_(words[k]);
     var expanded = SCHOOL_ABBR_EXPAND_[w] || [SCHOOL_WORD_SYNONYMS_[w] || w];
     expanded.forEach(function (word) {
       // GSSS expands to "... school"; an immediately following literal
