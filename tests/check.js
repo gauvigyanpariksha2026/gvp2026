@@ -551,17 +551,20 @@ assert.deepEqual(
   JSON.parse(JSON.stringify(context.DISTRICT_BLOCKS)),
   'site/js/locations.js GVP_LOCATIONS must match apps-script/Code.gs DISTRICT_BLOCKS'
 );
+// sw.js is a kill switch, not an offline cache: it must unregister itself
+// and clear every cache it created (rather than keep serving stale pages
+// to already-registered visitors), and neither page may register a new
+// one so it can never install for a first-time visitor.
 if (fs.existsSync(path.join(root, 'site', 'sw.js'))) {
   const swCode = fs.readFileSync(path.join(root, 'site', 'sw.js'), 'utf8');
   new Function(swCode);
-  const assetsMatch = swCode.match(/var STATIC_ASSETS\s*=\s*\[([\s\S]*?)\];/);
-  assert.ok(assetsMatch, 'STATIC_ASSETS not found in site/sw.js');
-  const staticAssets = new Function(`return [${assetsMatch[1]}];`)();
-  for (const asset of staticAssets) {
-    if (asset === './') continue;
-    const resolved = path.join(root, 'site', asset);
-    assert.ok(fs.existsSync(resolved), `site/sw.js STATIC_ASSETS references missing file: ${asset}`);
-  }
+  assert.ok(/self\.registration\.unregister\(\)/.test(swCode), 'site/sw.js must unregister itself');
+  assert.ok(/caches\.delete\(/.test(swCode), 'site/sw.js must clear caches it created');
+  assert.ok(!/STATIC_ASSETS/.test(swCode), 'site/sw.js should no longer pre-cache an app shell');
+}
+for (const page of ['index.html', 'pay.html']) {
+  const pageSrc = fs.readFileSync(path.join(root, 'site', page), 'utf8');
+  assert.ok(!/serviceWorker\.register/.test(pageSrc), `site/${page} must not register a service worker`);
 }
 
 // Verify that site/manifest.json is valid JSON and referenced icons exist

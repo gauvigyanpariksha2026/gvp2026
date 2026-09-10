@@ -1,75 +1,36 @@
 /**
- * Gau Vigyan Pariksha 2026 — Service Worker
- * Provides offline caching for static app shell assets and network resilience.
+ * Gau Vigyan Pariksha 2026 — Service Worker kill switch.
+ *
+ * The offline-caching service worker (stale-while-revalidate, ignoring
+ * query strings) was serving already-registered visitors a cached copy of
+ * pay.html/index.html even right after a fresh deploy, masking bug fixes
+ * behind an extra "visit twice" step with no indication anything was
+ * stale. Rather than just deleting this file (which leaves any already-
+ * installed service worker running indefinitely — deploy fixes were
+ * getting masked by exactly that), this file now unregisters itself,
+ * clears every cache it created, and reloads any open tabs so already
+ * registered visitors immediately go back to plain network requests.
+ * index.html/pay.html no longer register a service worker, so this only
+ * ever runs for someone who still has the old one installed.
  */
-var CACHE_NAME = 'gvp-2026-v2';
-var STATIC_ASSETS = [
-  './',
-  'index.html',
-  'pay.html',
-  'manifest.json',
-  'css/app.css',
-  'js/locations.js',
-  'js/api.js',
-  'js/pdf-report.js',
-  'img/firefly-1.jpg',
-  'img/event-poster.jpeg'
-];
-
-self.addEventListener('install', function (event) {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(STATIC_ASSETS);
-    }).then(function () {
-      return self.skipWaiting();
-    })
-  );
+self.addEventListener('install', function () {
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', function (event) {
   event.waitUntil(
-    caches.keys().then(function (keys) {
-      return Promise.all(
-        keys.filter(function (key) {
-          return key !== CACHE_NAME;
-        }).map(function (key) {
-          return caches.delete(key);
-        })
-      );
-    }).then(function () {
-      return self.clients.claim();
-    })
-  );
-});
-
-self.addEventListener('fetch', function (event) {
-  var request = event.request;
-  var url = new URL(request.url);
-
-  // Never cache API calls to Google Apps Script or external non-GET requests
-  if (request.method !== 'GET' || url.hostname.indexOf('script.google.com') !== -1) {
-    return;
-  }
-
-  // Stale-while-revalidate for local static assets (ignore query strings like ?v=20260907)
-  event.respondWith(
-    caches.open(CACHE_NAME).then(function (cache) {
-      return cache.match(request, { ignoreSearch: true }).then(function (cachedResponse) {
-        var fetchPromise = fetch(request).then(function (networkResponse) {
-          if (networkResponse && networkResponse.status === 200) {
-            cache.put(request, networkResponse.clone());
-          }
-          return networkResponse;
-        }).catch(function () {
-          // If offline and no cached response for navigation, return cached index.html
-          if (!cachedResponse && request.mode === 'navigate') {
-            return cache.match('index.html');
-          }
-          return cachedResponse;
-        });
-
-        return cachedResponse || fetchPromise;
-      });
-    })
+    caches.keys()
+      .then(function (keys) {
+        return Promise.all(keys.map(function (key) { return caches.delete(key); }));
+      })
+      .then(function () {
+        return self.registration.unregister();
+      })
+      .then(function () {
+        return self.clients.matchAll({ type: 'window' });
+      })
+      .then(function (clients) {
+        clients.forEach(function (client) { client.navigate(client.url); });
+      })
   );
 });
