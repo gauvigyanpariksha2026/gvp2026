@@ -812,6 +812,13 @@ var LAST_BILL_LOOKUP_SCHOOL='';
 var LAST_BILL_LOOKUP_VILLAGE='';
 var LAST_BILL_FIELDS=null;
 var LAST_STUDENTS=[];
+// Which school selection the currently-shown student list belongs to. The
+// quick student-list card works independently of "See amount" — a visitor
+// can load a list before, during, or without ever loading a bill — so a
+// slow bill response landing after an already-shown list must not wipe it
+// out just because a bill happened to finish loading; it should only clear
+// a list that belonged to a *different* school selection.
+var LAST_STUDENTS_KEY=null;
 var BILL_REQUEST_ID=0;
 function schoolKey(f){
   return [f.district,f.block,f.school,f.village].join('|').toLowerCase();
@@ -838,6 +845,7 @@ function hideBill(){
   LAST_BILL_LOOKUP_VILLAGE='';
   LAST_BILL_FIELDS=null;
   LAST_STUDENTS=[];
+  LAST_STUDENTS_KEY=null;
   hide($('billBox')); hide($('payForm')); hide($('billErr')); hide($('done'));
   hide($('upiBox')); hide($('needsUpiBox')); hide($('zeroNote')); hide($('billPaid'));
   hide($('viewStudentsWrap')); hide($('studentsList')); hide($('studentsDownloadWrap'));
@@ -900,6 +908,7 @@ function updateSchoolStatusBadge(){
       updateSchoolStatusBadge();
       if(LAST_STUDENTS.length>0){
         LAST_STUDENTS=[];
+        LAST_STUDENTS_KEY=null;
         hide($('studentsList'));
         hide($('studentsDownloadWrap'));
         $('studentsList').innerHTML='';
@@ -909,6 +918,7 @@ function updateSchoolStatusBadge(){
       updateSchoolStatusBadge();
       if(LAST_STUDENTS.length>0){
         LAST_STUDENTS=[];
+        LAST_STUDENTS_KEY=null;
         hide($('studentsList'));
         hide($('studentsDownloadWrap'));
         $('studentsList').innerHTML='';
@@ -1008,8 +1018,15 @@ $('billBtn').addEventListener('click',function(){
       LAST_BILL_LOOKUP_SCHOOL=res.lookupSchool||f.school;
       LAST_BILL_LOOKUP_VILLAGE=res.lookupVillage||f.village;
       LAST_BILL_FIELDS={district:f.district,block:f.block,school:LAST_BILL_LOOKUP_SCHOOL,village:LAST_BILL_LOOKUP_VILLAGE};
-      LAST_STUDENTS=[];
-      hide($('studentsList')); hide($('studentsDownloadWrap')); $('studentsList').innerHTML=''; $('studentsMobile').value='';
+      // Only clear an already-shown student list if it belongs to a
+      // different school than this bill — a slower "See amount" response
+      // landing after the (independent) quick student-list card already
+      // loaded a list must not wipe it back out.
+      if(LAST_STUDENTS_KEY!==schoolKey(f)){
+        LAST_STUDENTS=[];
+        LAST_STUDENTS_KEY=null;
+        hide($('studentsList')); hide($('studentsDownloadWrap')); $('studentsList').innerHTML=''; $('studentsMobile').value='';
+      }
       if(res.students>0){
         show($('viewStudentsWrap'));
         if($('quickStudentsBtn')){
@@ -1139,6 +1156,10 @@ function loadStudentsList(){
   }
   $('studentsMobile').classList.remove('err');
   updateSchoolStatusBadge();
+  // Keyed off the raw typed fields (not the possibly-canonicalized
+  // LAST_BILL_FIELDS) so it compares directly against billBtn's own
+  // schoolKey(f) — same selection typed the same way, either order.
+  var reqKey=schoolKey(schoolFields());
   var lookup=LAST_BILL_FIELDS||schoolFields();
   if(!lookup.district||!lookup.block||!lookup.school||!lookup.village){
     var missing=!lookup.district?$('district'):!lookup.block?blockEl:!lookup.school?$('school'):$('village');
@@ -1152,6 +1173,7 @@ function loadStudentsList(){
   }
   var requestId=++STUDENTS_REQUEST_ID;
   LAST_STUDENTS=[];
+  LAST_STUDENTS_KEY=null;
   hide($('studentsDownloadWrap'));
 
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -1176,6 +1198,7 @@ function loadStudentsList(){
       return;
     }
     LAST_STUDENTS=res.data.slice();
+    LAST_STUDENTS_KEY=reqKey;
     show($('studentSearchWrap'));
     $('studentSearchInput').value='';
     renderStudentsTable('');
