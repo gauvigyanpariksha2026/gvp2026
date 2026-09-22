@@ -191,6 +191,8 @@ assert.equal(unrelatedColumnSheet.__state.header, 'Notes');
 assert.equal(context.UTILITY_SHEETS_['Payments'], true);
 assert.equal(context.UTILITY_SHEETS_['School Dues'], true);
 assert.equal(context.UTILITY_SHEETS_['Errors'], true);
+assert.equal(context.UTILITY_SHEETS_['Registration Queue'], true);
+assert.ok(context.REG_QUEUE_HEADERS_.includes('Failure Reason'));
 const insertedRegistrationSheet = { marker: 'new registration sheet' };
 assert.equal(originalGetRegistrationSheet({
   getSheetByName: () => null,
@@ -226,6 +228,16 @@ assert.ok(
   submitRegistrationSource.indexOf('duplicateRegistrationExists_(sheet, data.name, data.father, data.mobile)') <
     submitRegistrationSource.indexOf('registrationWriteAllowed_(data)'),
   'duplicate rejection must occur before registration quota is charged'
+);
+assert.ok(
+  submitRegistrationSource.indexOf('queueRegistration_(queueSpreadsheet, data)') <
+    submitRegistrationSource.indexOf('lock.waitLock(20000)'),
+  'a valid submission must enter the durable queue before waiting on the registration lock'
+);
+assert.ok(
+  submitRegistrationSource.indexOf("finishQueuedRegistration_(queued, 'Saved', regNo, '')") >
+    submitRegistrationSource.indexOf('sheet.appendRow(['),
+  'the queue must be marked Saved only after the registration row is appended'
 );
 
 // A new-only sheet may have had all obsolete columns after M deleted.

@@ -49,7 +49,8 @@ var REG_GLOBAL_WINDOW_SEC_ = 600;
 var REG_GLOBAL_WINDOW_MAX_ = 100;
 var PAY_HEADERS_ = ['District', 'Block', 'School', 'Students', 'Amount Due', 'Amount Paid', 'Status', 'Payer Name', 'UTR', 'Payer Mobile', 'Reported At', 'Books', 'Village'];
 var DUES_HEADERS_ = ['District', 'Block', 'School', 'Students', 'Amount', 'Paid', 'Balance', 'Status', 'Books', 'Village'];
-var UTILITY_SHEETS_ = { 'Payments': true, 'School Dues': true, 'Errors': true };
+var REG_QUEUE_HEADERS_ = ['Queued At', 'Status', 'Reg', 'Failure Reason', 'Name', 'Father', 'Gender', 'Class', 'District', 'Block', 'School', 'Village', 'Mobile', 'Year'];
+var UTILITY_SHEETS_ = { 'Payments': true, 'School Dues': true, 'Errors': true, 'Registration Queue': true };
 
 function getSpreadsheet_() {
   // A bound project should not fail merely because an old copied ID remains here.
@@ -748,9 +749,81 @@ function scanMaxRegSerial_(sheet) {
 function nextRegSerial_(sheet) {
   var props = PropertiesService.getScriptProperties();
   var stored = props.getProperty('LAST_REG_SERIAL');
-  var next = (stored ? parseInt(stored, 10) : scanMaxRegSerial_(sheet)) + 1;
-  props.setProperty('LAST_REG_SERIAL', String(next));
-  return next;
+  // The counter is committed only after appendRow succeeds. If a prior call
+  // saved the row but was interrupted before committing its property, the
+  // sheet's tail protects against reusing that number.
+  var tail = String(sheet.getRange(sheet.getLastRow(), 1).getValue() || '').match(/(\d+)$/);
+  var tailSerial = tail ? parseInt(tail[1], 10) : 0;
+  var known = stored ? parseInt(stored, 10) : scanMaxRegSerial_(sheet);
+  return Math.max(known || 0, tailSerial) + 1;
+}
+
+function commitRegSerial_(serial) {
+  PropertiesService.getScriptProperties().setProperty('LAST_REG_SERIAL', String(serial));
+}
+
+// A valid public submission is written here before it waits on the main
+// registration lock. This provides a recoverable record during traffic
+// spikes, even when the main sheet cannot be updated immediately.
+function queueRegistration_(ss, data) {
+  var sheet = ss.getSheetByName('Registration Queue');
+  if (!sheet) {
+    sheet = ss.insertSheet('Registration Queue');
+    sheet.getRange(1, 1, 1, REG_QUEUE_HEADERS_.length).setValues([REG_QUEUE_HEADERS_]);
+    sheet.setFrozenRows(1);
+  }
+  var now = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'M/d/yyyy HH:mm:ss');
+  sheet.appendRow([now, 'Queued', '', '', upper_(data.name), upper_(data.father), upper_(data.gender), data.cls, upper_(data.district), upper_(data.block), upper_(data.school), upper_(data.village), String(data.mobile).trim(), ACADEMIC_YEAR]);
+  return { sheet: sheet, row: sheet.getLastRow() };
+}
+
+function finishQueuedRegistration_(queued, status, regNo, reason) {
+  if (!queued) return;
+  queued.sheet.getRange(queued.row, 2, 1, 3).setValues([[status, regNo || '', reason || '']]);
+}
+
+/**
+ * Admin recovery: writes a small batch of durable queued submissions after a
+ * traffic spike. Run manually from the Apps Script editor, or attach an
+ * every-minute trigger. It never renumbers existing registrations.
+ */
+function processRegistrationQueue() {
+  var ss = getSpreadsheet_();
+  var queue = ss.getSheetByName('Registration Queue');
+  if (!queue || queue.getLastRow() < 2) return { ok: true, saved: 0, duplicates: 0, remaining: 0 };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  var saved = 0, duplicates = 0, remaining = 0;
+  try {
+    var registrations = getRegistrationSheet_(ss);
+    ensureRegistrationHeaders_(registrations);
+    ensureRegistrationStatusColumn_(registrations);
+    var rows = queue.getRange(2, 1, queue.getLastRow() - 1, REG_QUEUE_HEADERS_.length).getValues();
+    for (var i = 0; i < rows.length && saved + duplicates < 25; i++) {
+      if (String(rows[i][1] || '') !== 'Queued') continue;
+      var data = { name: rows[i][4], father: rows[i][5], gender: rows[i][6], cls: rows[i][7], district: rows[i][8], block: rows[i][9], school: rows[i][10], village: rows[i][11], mobile: rows[i][12] };
+      var queueRow = i + 2;
+      if (duplicateRegistrationExists_(registrations, data.name, data.father, data.mobile)) {
+        queue.getRange(queueRow, 2, 1, 3).setValues([['Duplicate', '', 'Matching registration already exists']]);
+        duplicates++;
+        continue;
+      }
+      var location = canonicalRegistrationLocation_(registrations, data.district, data.block, data.school, data.village);
+      var serial = nextRegSerial_(registrations);
+      var regNo = 'GVP-2026-' + ('00000' + serial).slice(-5);
+      var omrNo = omrFromSerial_(serial);
+      var now = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'M/d/yyyy HH:mm:ss');
+      registrations.appendRow([regNo, now, upper_(data.name), upper_(data.father), upper_(data.gender), data.cls, upper_(data.district), upper_(data.block), upper_(location.school), upper_(location.village), String(data.mobile).trim(), omrNo, ACADEMIC_YEAR, '', '', '', '', '', '', '']);
+      commitRegSerial_(serial);
+      queue.getRange(queueRow, 2, 1, 3).setValues([['Saved', regNo, 'Recovered from queue']]);
+      saved++;
+    }
+    for (var j = 0; j < rows.length; j++) if (String(rows[j][1] || '') === 'Queued') remaining++;
+    remaining -= saved + duplicates;
+    return { ok: true, saved: saved, duplicates: duplicates, remaining: remaining };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // Same student (by name + father + mobile) submitted twice, e.g. a
@@ -828,6 +901,7 @@ function canonicalRegistrationLocation_(sheet, district, block, school, village)
 
 function submitRegistration(data) {
   data = data || {};
+  var queued = null;
   try {
     // Honeypot: real users never fill this hidden field, bots usually do.
     // Fail with the same generic error a validation failure would give.
@@ -873,11 +947,18 @@ function submitRegistration(data) {
       return { ok: false, error: 'घोषणा स्वीकार करें' };
     }
 
+    // Persist the valid payload before attempting the contended write lock.
+    // If the lock or Sheets service fails, the organizer can restore it from
+    // Registration Queue instead of asking the student to register again.
+    var queueSpreadsheet = getSpreadsheet_();
+    queued = queueRegistration_(queueSpreadsheet, data);
+
     var lock = LockService.getScriptLock();
     lock.waitLock(20000);
+    var ss, sheet, regResult;
     try {
-      var ss = getSpreadsheet_();
-      var sheet = getRegistrationSheet_(ss);
+      ss = getSpreadsheet_();
+      sheet = getRegistrationSheet_(ss);
       ensureRegistrationHeaders_(sheet);
       ensureRegistrationStatusColumn_(sheet);
       var canonicalLocation = canonicalRegistrationLocation_(sheet, data.district, data.block, data.school, data.village);
@@ -913,13 +994,33 @@ function submitRegistration(data) {
         '', '', '', '', '', '',
         initialStatus
       ]);
-      return { ok: true, regNo: regNo, omrNo: omrNo };
+      commitRegSerial_(nextNum);
+      finishQueuedRegistration_(queued, 'Saved', regNo, '');
+      regResult = { ok: true, regNo: regNo, omrNo: omrNo };
     } finally {
       lock.releaseLock();
     }
+    // Computed after the lock is released, since it's a read used only for
+    // display — it must not extend how long other registrations wait, and a
+    // failure here must not turn an already-saved registration into a
+    // reported failure (the row above is already committed to the sheet).
+    try {
+      var bill = computeSchoolBill_(data.district, data.block, data.school, data.village, ss, sheet);
+      regResult.schoolStudents = bill.students;
+      regResult.amountDue = bill.amountDue;
+      regResult.amountPaid = bill.amountPaid;
+    } catch (billErr) {
+      logError_('submitRegistration:bill', billErr);
+    }
+    return regResult;
   } catch (e) {
+    try {
+      finishQueuedRegistration_(queued, 'Queued', '', e.message || 'Registration write failed');
+    } catch (queueErr) {
+      logError_('submitRegistration:queue', queueErr);
+    }
     logError_('submitRegistration', e);
-    return { ok: false, error: e.message || 'त्रुटि हुई, पुनः प्रयास करें' };
+    return { ok: false, queued: !!queued, error: queued ? 'पंजीकरण सुरक्षित रूप से कतार में रखा गया है। कृपया आयोजक से पुष्टि करें / Registration was safely queued. Please ask the organizer to confirm it.' : (e.message || 'त्रुटि हुई, पुनः प्रयास करें') };
   }
 }
 
@@ -1521,4 +1622,3 @@ function rebuildSchoolDues() {
   dues.setFrozenRows(1);
   return { ok: true, schools: out.length - 1 };
 }
-

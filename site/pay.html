@@ -452,6 +452,24 @@ digitsOnly('utr',24);
 digitsOnly('mobile',10);
 digitsOnly('payAmount',9);
 digitsOnly('studentsMobile',10);
+
+// Keeps the UPI QR/link amount matching what the payer is about to report —
+// otherwise a school paying part now would be shown a QR for the full due
+// while the form below records only the smaller amount they typed.
+function updateUpiAmount(amount){
+  if(!LAST_BILL || !LAST_BILL.upi || !LAST_BILL.upi.link) return;
+  var reportable=Number(LAST_BILL.amountReportable===undefined?LAST_BILL.amountDue:LAST_BILL.amountReportable);
+  amount=Math.floor(Number(amount)||0);
+  if(amount<1) amount=1;
+  if(amount>reportable) amount=reportable;
+  var link=String(LAST_BILL.upi.link).replace(/([?&]am=)[^&]*/, '$1'+encodeURIComponent(String(amount)));
+  $('upiLink').href=link||'#';
+  $('upiLink').innerHTML='<span aria-hidden="true">⚡</span> Pay '+rupee(amount)+' <span aria-hidden="true">↗</span>';
+  $('qrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=240x240&data='+encodeURIComponent(link);
+}
+$('payAmount').addEventListener('input',function(){
+  if(!$('upiBox').classList.contains('hidden')) updateUpiAmount(this.value);
+});
 $('mobile').addEventListener('keydown',function(e){
   if(e.key==='Enter'){
     e.preventDefault();
@@ -1101,12 +1119,8 @@ $('billBtn').addEventListener('click',function(){
       if(res.needsUpi){
         show($('needsUpiBox'));
       } else if(res.upi && res.upi.qr){
-        $('qrImg').src=res.upi.qr;
         $('upiId').textContent=res.upi.vpa||'';
-        var upiAmount=reportableAmount;
-        var upiLink=String(res.upi.link||'').replace(/([?&]am=)[^&]*/, '$1'+encodeURIComponent(String(upiAmount)));
-        $('upiLink').href=upiLink||'#';
-        $('upiLink').innerHTML='<span aria-hidden="true">⚡</span> Pay '+rupee(upiAmount)+' <span aria-hidden="true">↗</span>';
+        updateUpiAmount(reportableAmount);
         show($('upiBox'));
       }
       $('payAmount').value=reportableAmount;

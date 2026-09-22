@@ -378,7 +378,7 @@ select.inp:disabled{
     <p class="thanks-note done-item">धन्यवाद! गौ विज्ञान परीक्षा में भाग लेकर आपने गौ माता के प्रति अपने सम्मान और जिज्ञासा को दर्शाया है। यह प्रयास सराहनीय है — परीक्षा हेतु हार्दिक शुभकामनाएं।</p>
     <div class="mt-5 p-3 rounded-lg border border-gold/40 bg-sand/60 text-center done-item" style="max-width:24rem;margin-left:auto;margin-right:auto">
       <p class="text-sm font-semibold text-leaf-deep">✅ पंजीकरण सफलतापूर्वक दर्ज हो गया है</p>
-      <p class="mt-1 text-xs text-ink/75">परीक्षा शुल्क (₹30) अपने विद्यालय के प्रभारी शिक्षक को जमा करें।</p>
+      <p id="feeNote" class="mt-1 text-xs text-ink/75">परीक्षा शुल्क (₹30) अपने विद्यालय के प्रभारी शिक्षक को जमा करें।</p>
     </div>
     <div class="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 done-item">
       <button id="printConfirmBtn" type="button" class="btn">पुष्टि रसीद सहेजें / Save confirmation</button>
@@ -1261,6 +1261,20 @@ function submitRegistration(event){
         village:data.village
       });
       $('goToPaymentBtn').href='pay.html?'+payParams.toString();
+      // If earlier students from this same school registered but the school
+      // never paid, this student's ₹30 is only part of what's owed — show
+      // the school's running total instead of implying just ₹30 is due. If
+      // the school already paid ahead of this registration, amountDue can
+      // be 0 even though the static ₹30 line would otherwise still ask for it.
+      if($('feeNote')){
+        if(typeof res.amountDue==='number' && res.amountDue>0 && res.schoolStudents>1){
+          $('feeNote').textContent='इस विद्यालय के कुल '+res.schoolStudents+' विद्यार्थियों का ₹'+res.amountDue+' शुल्क शेष है — पूरी राशि विद्यालय भुगतान पोर्टल से जमा करें। / Total due for '+res.schoolStudents+' students at this school: ₹'+res.amountDue+'.';
+        } else if(typeof res.amountDue==='number' && res.amountDue<=0 && res.schoolStudents>1){
+          $('feeNote').textContent='इस विद्यालय का शुल्क पहले ही पूरा जमा है। / This school\'s fee is already fully paid.';
+        } else {
+          $('feeNote').textContent='परीक्षा शुल्क (₹30) अपने विद्यालय के प्रभारी शिक्षक को जमा करें।';
+        }
+      }
       var summaryRows=[
         ['नाम / Name',data.name],
         ['पिता / Father',data.father],
