@@ -49,8 +49,8 @@ var REG_GLOBAL_WINDOW_SEC_ = 600;
 var REG_GLOBAL_WINDOW_MAX_ = 100;
 var PAY_HEADERS_ = ['District', 'Block', 'School', 'Students', 'Amount Due', 'Amount Paid', 'Status', 'Payer Name', 'UTR', 'Payer Mobile', 'Reported At', 'Books', 'Village'];
 var DUES_HEADERS_ = ['District', 'Block', 'School', 'Students', 'Amount', 'Paid', 'Balance', 'Status', 'Books', 'Village'];
-var REG_QUEUE_HEADERS_ = ['Queued At', 'Status', 'Reg', 'Failure Reason', 'Name', 'Father', 'Gender', 'Class', 'District', 'Block', 'School', 'Village', 'Mobile', 'Year'];
-var UTILITY_SHEETS_ = { 'Payments': true, 'School Dues': true, 'Errors': true, 'Registration Queue': true };
+var REG_QUEUE_HEADERS_ = ['Queue ID', 'Queued At', 'Status', 'Reg', 'Failure Reason', 'Name', 'Father', 'Gender', 'Class', 'District', 'Block', 'School', 'Village', 'Mobile', 'Year'];
+var UTILITY_SHEETS_ = { 'Payments': true, 'School Dues': true, 'Errors': true, 'Registration Queue': true, 'Recovery Log': true };
 
 function getSpreadsheet_() {
   // A bound project should not fail merely because an old copied ID remains here.
@@ -762,24 +762,47 @@ function commitRegSerial_(serial) {
   PropertiesService.getScriptProperties().setProperty('LAST_REG_SERIAL', String(serial));
 }
 
-// A valid public submission is written here before it waits on the main
-// registration lock. This provides a recoverable record during traffic
-// spikes, even when the main sheet cannot be updated immediately.
-function queueRegistration_(ss, data) {
+// Called under the script lock by both submitRegistration and the queue
+// processor. Migrate legacy rows before either path reads or appends records.
+function ensureRegistrationQueue_(ss) {
   var sheet = ss.getSheetByName('Registration Queue');
   if (!sheet) {
     sheet = ss.insertSheet('Registration Queue');
     sheet.getRange(1, 1, 1, REG_QUEUE_HEADERS_.length).setValues([REG_QUEUE_HEADERS_]);
     sheet.setFrozenRows(1);
+  } else {
+    var currentHeaders = sheet.getRange(1, 1, 1, REG_QUEUE_HEADERS_.length).getValues()[0];
+    if (String(currentHeaders[0] || '').trim() !== 'Queue ID') {
+      // Preserve existing queued records; insert the ID column before them.
+      sheet.insertColumnBefore(1);
+      sheet.getRange(1, 1, 1, REG_QUEUE_HEADERS_.length).setValues([REG_QUEUE_HEADERS_]);
+      var oldLastRow = sheet.getLastRow();
+      if (oldLastRow >= 2) {
+        var legacyIds = [];
+        for (var i = 0; i < oldLastRow - 1; i++) legacyIds.push([Utilities.getUuid()]);
+        sheet.getRange(2, 1, legacyIds.length, 1).setValues(legacyIds);
+      }
+    }
   }
+  return sheet;
+}
+
+// Queue IDs identify records independently of row position, so concurrent
+// submissions and queue processing cannot update another request's row.
+function queueRegistration_(ss, data) {
+  var sheet = ensureRegistrationQueue_(ss);
+  var queueId = Utilities.getUuid();
   var now = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'M/d/yyyy HH:mm:ss');
-  sheet.appendRow([now, 'Queued', '', '', upper_(data.name), upper_(data.father), upper_(data.gender), data.cls, upper_(data.district), upper_(data.block), upper_(data.school), upper_(data.village), String(data.mobile).trim(), ACADEMIC_YEAR]);
-  return { sheet: sheet, row: sheet.getLastRow() };
+  sheet.appendRow([queueId, now, 'Queued', '', '', upper_(data.name), upper_(data.father), upper_(data.gender), data.cls, upper_(data.district), upper_(data.block), upper_(data.school), upper_(data.village), String(data.mobile).trim(), ACADEMIC_YEAR]);
+  return { sheet: sheet, queueId: queueId };
 }
 
 function finishQueuedRegistration_(queued, status, regNo, reason) {
   if (!queued) return;
-  queued.sheet.getRange(queued.row, 2, 1, 3).setValues([[status, regNo || '', reason || '']]);
+  var match = queued.sheet.getRange(2, 1, Math.max(0, queued.sheet.getLastRow() - 1), 1)
+    .createTextFinder(queued.queueId).matchEntireCell(true).findNext();
+  if (!match) throw new Error('Registration queue record not found: ' + queued.queueId);
+  queued.sheet.getRange(match.getRow(), 3, 1, 3).setValues([[status, regNo || '', reason || '']]);
 }
 
 /**
@@ -789,22 +812,22 @@ function finishQueuedRegistration_(queued, status, regNo, reason) {
  */
 function processRegistrationQueue() {
   var ss = getSpreadsheet_();
-  var queue = ss.getSheetByName('Registration Queue');
-  if (!queue || queue.getLastRow() < 2) return { ok: true, saved: 0, duplicates: 0, remaining: 0 };
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   var saved = 0, duplicates = 0, remaining = 0;
   try {
+    var queue = ensureRegistrationQueue_(ss);
+    if (queue.getLastRow() < 2) return { ok: true, saved: 0, duplicates: 0, remaining: 0 };
     var registrations = getRegistrationSheet_(ss);
     ensureRegistrationHeaders_(registrations);
     ensureRegistrationStatusColumn_(registrations);
     var rows = queue.getRange(2, 1, queue.getLastRow() - 1, REG_QUEUE_HEADERS_.length).getValues();
     for (var i = 0; i < rows.length && saved + duplicates < 25; i++) {
-      if (String(rows[i][1] || '') !== 'Queued') continue;
-      var data = { name: rows[i][4], father: rows[i][5], gender: rows[i][6], cls: rows[i][7], district: rows[i][8], block: rows[i][9], school: rows[i][10], village: rows[i][11], mobile: rows[i][12] };
+      if (String(rows[i][2] || '') !== 'Queued') continue;
+      var data = { name: rows[i][5], father: rows[i][6], gender: rows[i][7], cls: rows[i][8], district: rows[i][9], block: rows[i][10], school: rows[i][11], village: rows[i][12], mobile: rows[i][13] };
       var queueRow = i + 2;
       if (duplicateRegistrationExists_(registrations, data.name, data.father, data.mobile)) {
-        queue.getRange(queueRow, 2, 1, 3).setValues([['Duplicate', '', 'Matching registration already exists']]);
+        queue.getRange(queueRow, 3, 1, 3).setValues([['Duplicate', '', 'Matching registration already exists']]);
         duplicates++;
         continue;
       }
@@ -815,10 +838,10 @@ function processRegistrationQueue() {
       var now = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'M/d/yyyy HH:mm:ss');
       registrations.appendRow([regNo, now, upper_(data.name), upper_(data.father), upper_(data.gender), data.cls, upper_(data.district), upper_(data.block), upper_(location.school), upper_(location.village), String(data.mobile).trim(), omrNo, ACADEMIC_YEAR, '', '', '', '', '', '', '']);
       commitRegSerial_(serial);
-      queue.getRange(queueRow, 2, 1, 3).setValues([['Saved', regNo, 'Recovered from queue']]);
+      queue.getRange(queueRow, 3, 1, 3).setValues([['Saved', regNo, 'Recovered from queue']]);
       saved++;
     }
-    for (var j = 0; j < rows.length; j++) if (String(rows[j][1] || '') === 'Queued') remaining++;
+    for (var j = 0; j < rows.length; j++) if (String(rows[j][2] || '') === 'Queued') remaining++;
     remaining -= saved + duplicates;
     return { ok: true, saved: saved, duplicates: duplicates, remaining: remaining };
   } finally {
@@ -947,12 +970,6 @@ function submitRegistration(data) {
       return { ok: false, error: 'घोषणा स्वीकार करें' };
     }
 
-    // Persist the valid payload before attempting the contended write lock.
-    // If the lock or Sheets service fails, the organizer can restore it from
-    // Registration Queue instead of asking the student to register again.
-    var queueSpreadsheet = getSpreadsheet_();
-    queued = queueRegistration_(queueSpreadsheet, data);
-
     var lock = LockService.getScriptLock();
     lock.waitLock(20000);
     var ss, sheet, regResult;
@@ -970,6 +987,9 @@ function submitRegistration(data) {
       if (!registrationWriteAllowed_(data)) {
         return { ok: false, error: 'बहुत अधिक पंजीकरण प्रयास हुए हैं। कृपया बाद में पुनः प्रयास करें / Too many registration attempts. Please try again later.' };
       }
+      // Queue only after the request passes duplicate and rate checks. The
+      // subsequent write remains recoverable if Sheets fails after admission.
+      queued = queueRegistration_(ss, data);
       var initialStatus = '';
       var nextNum = nextRegSerial_(sheet);
       var regNo = 'GVP-2026-' + ('00000' + nextNum).slice(-5);
@@ -995,7 +1015,14 @@ function submitRegistration(data) {
         initialStatus
       ]);
       commitRegSerial_(nextNum);
-      finishQueuedRegistration_(queued, 'Saved', regNo, '');
+      // The registration row is committed; a queue bookkeeping failure must
+      // not report failure. A still-Queued row is later marked Duplicate.
+      try {
+        finishQueuedRegistration_(queued, 'Saved', regNo, '');
+      } catch (queueErr) {
+        logError_('submitRegistration:queueSaved', queueErr);
+      }
+      queued = null;
       regResult = { ok: true, regNo: regNo, omrNo: omrNo };
     } finally {
       lock.releaseLock();
@@ -1621,4 +1648,97 @@ function rebuildSchoolDues() {
   dues.getRange(1, 1, out.length, DUES_HEADERS_.length).setValues(out);
   dues.setFrozenRows(1);
   return { ok: true, schools: out.length - 1 };
+}
+
+/**
+ * Admin recovery from Google Sheets version history.
+ *
+ * 1. In the live sheet: File -> Version history -> See version history.
+ *    Pick the last version that still had the missing students, click the
+ *    three dots -> "Make a copy". (Do NOT click "Restore" -- that would drop
+ *    every registration made since then.)
+ * 2. Paste the copy's ID (between /d/ and /edit) into RECOVERY_SOURCE_ID.
+ * 3. Run recoverRegistrationsDryRun and read the log (nothing is written).
+ * 4. Run recoverRegistrationsFromCopy. It appends only the rows whose Reg No
+ *    is missing from the live sheet, keeping their original Reg/OMR numbers,
+ *    in one batch write. Rows it skips are listed on a "Recovery Log" tab.
+ * Safe to run again: already-restored Reg numbers are skipped.
+ */
+var RECOVERY_SOURCE_ID = '';
+
+function recoverRegistrationsDryRun() {
+  return recoverRegistrations_(true);
+}
+
+function recoverRegistrationsFromCopy() {
+  return recoverRegistrations_(false);
+}
+
+function recoverRegistrations_(dryRun) {
+  var sourceId = String(RECOVERY_SOURCE_ID || '').trim();
+  if (!sourceId) throw new Error('Set RECOVERY_SOURCE_ID to the ID of the version-history copy first.');
+  var ss = getSpreadsheet_();
+  if (sourceId === ss.getId()) throw new Error('RECOVERY_SOURCE_ID is the live sheet. Use the ID of the copy.');
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var live = getRegistrationSheet_(ss);
+    var source = getRegistrationSheet_(SpreadsheetApp.openById(sourceId));
+    var width = Math.min(source.getLastColumn(), REG_STATUS_COLUMN_);
+    var sourceRows = source.getLastRow() >= 2 ? source.getRange(2, 1, source.getLastRow() - 1, width).getValues() : [];
+    var liveLast = live.getLastRow();
+    var liveRows = liveLast >= 2 ? live.getRange(2, 1, liveLast - 1, Math.min(live.getLastColumn(), REG_STATUS_COLUMN_)).getValues() : [];
+
+    var identity = function (row) {
+      var r = registrationRow_(row.slice(2));
+      return compactKey_(r.name) + '|' + compactKey_(r.father) + '|' + r.mobile;
+    };
+    var liveRegs = {}, liveIds = {};
+    liveRows.forEach(function (row) {
+      var reg = String(row[0] || '').trim();
+      if (reg) liveRegs[reg] = true;
+      liveIds[identity(row)] = reg;
+    });
+
+    var restore = [], skipped = [], seen = {}, maxSerial = 0;
+    sourceRows.forEach(function (row) {
+      var reg = String(row[0] || '').trim();
+      if (!reg || liveRegs[reg] || seen[reg]) return;
+      seen[reg] = true;
+      var id = identity(row);
+      if (liveIds[id]) {
+        skipped.push([reg, 'Same student already re-registered as ' + liveIds[id]].concat(row.slice(2, 4)));
+        return;
+      }
+      restore.push(row);
+      var m = reg.match(/(\d+)$/);
+      if (m) maxSerial = Math.max(maxSerial, parseInt(m[1], 10));
+    });
+
+    var summary = { ok: true, dryRun: dryRun, sourceRows: sourceRows.length, liveRows: liveRows.length, restored: restore.length, skipped: skipped.length };
+    Logger.log(JSON.stringify(summary));
+    if (dryRun) {
+      restore.slice(0, 20).forEach(function (row) { Logger.log('Would restore: ' + row.slice(0, 4).join(' | ')); });
+      skipped.slice(0, 20).forEach(function (row) { Logger.log('Would skip: ' + row.join(' | ')); });
+      return summary;
+    }
+
+    if (restore.length) {
+      if (live.getMaxColumns() < width) live.insertColumnsAfter(live.getMaxColumns(), width - live.getMaxColumns());
+      var start = live.getLastRow() + 1;
+      if (live.getMaxRows() < start + restore.length - 1) live.insertRowsAfter(live.getMaxRows(), start + restore.length - 1 - live.getMaxRows());
+      live.getRange(start, 1, restore.length, width).setValues(restore);
+      // Never hand a recovered Reg No to a new registration.
+      var stored = parseInt(PropertiesService.getScriptProperties().getProperty('LAST_REG_SERIAL') || '0', 10) || 0;
+      commitRegSerial_(Math.max(stored, maxSerial, scanMaxRegSerial_(live)));
+    }
+    var log = ss.getSheetByName('Recovery Log') || ss.insertSheet('Recovery Log');
+    log.clearContents();
+    log.getRange(1, 1, 1, 4).setValues([['Reg', 'Skipped because', 'Name', 'Father']]);
+    if (skipped.length) log.getRange(2, 1, skipped.length, 4).setValues(skipped);
+    log.getRange(1, 6, 2, 2).setValues([['Restored rows', restore.length], ['Recovered at', new Date()]]);
+    return summary;
+  } finally {
+    lock.releaseLock();
+  }
 }

@@ -1128,7 +1128,7 @@ $('billBtn').addEventListener('click',function(){
       show($('payForm'));
       setPayFlow(3);
     })
-    .catch(function(e){fail('Server error: '+errorMessage(e,'server error'));});
+    .catch(function(e){fail('सर्वर से पुष्टि नहीं मिली। भुगतान रिपोर्ट सुरक्षित हुई हो सकती है। कृपया अलग UTR से दोबारा न भेजें; इसी UTR को संभालकर रखें और पुष्टि के लिए आयोजक से संपर्क करें। / The server did not confirm the result. Your payment report may already be saved. Do not submit it with a different UTR; keep this UTR and contact the organizer to confirm. ('+errorMessage(e,'server error')+')');});
 });
 
 var STUDENTS_REQUEST_ID=0;

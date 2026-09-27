@@ -1266,7 +1266,13 @@ function submitRegistration(event){
       $('submitBtn').disabled=false; $('btnSpin').classList.add('hidden');
       $('btnTxt').textContent='पंजीकरण जमा करें';
       if(!res||!res.ok){
-        show($('formErr'),(res&&res.error)||'त्रुटि हुई, पुनः प्रयास करें'); return;
+        var submitError=(res&&res.error)||'त्रुटि हुई, पुनः प्रयास करें';
+        if(res&&res.queued){
+          submitError+='\n\nआपका विवरण सुरक्षित कतार में है। कृपया अभी दोबारा पंजीकरण न करें; अपने विद्यालय प्रभारी से नाम और मोबाइल द्वारा पुष्टि करें। / Your details are safely queued. Please do not submit again yet; ask your school coordinator to confirm using the student name and mobile number.';
+        }
+        show($('formErr'),submitError);
+        $('formErr').focus();
+        return;
       }
       document.querySelector('main').classList.add('hidden');
       clearRegistrationDraft();
@@ -1343,7 +1349,8 @@ function submitRegistration(event){
       isSubmitting = false;
       $('submitBtn').disabled=false; $('btnSpin').classList.add('hidden');
       $('btnTxt').textContent='पंजीकरण जमा करें';
-      show($('formErr'),'सर्वर त्रुटि: '+errorMessage(e,'server error'));
+      show($('formErr'),'सर्वर से पुष्टि नहीं मिली। आपका पंजीकरण सुरक्षित हुआ हो सकता है। कृपया तुरंत दोबारा जमा न करें; विद्यालय प्रभारी से नाम और मोबाइल द्वारा पुष्टि करें। / The server did not confirm the result. Your registration may already be saved. Please do not submit again immediately; ask your school coordinator to check using the student name and mobile number. ('+errorMessage(e,'server error')+')');
+      $('formErr').focus();
     });
 }
 $('registrationForm').addEventListener('submit',submitRegistration);

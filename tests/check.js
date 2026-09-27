@@ -193,6 +193,7 @@ assert.equal(context.UTILITY_SHEETS_['School Dues'], true);
 assert.equal(context.UTILITY_SHEETS_['Errors'], true);
 assert.equal(context.UTILITY_SHEETS_['Registration Queue'], true);
 assert.ok(context.REG_QUEUE_HEADERS_.includes('Failure Reason'));
+assert.equal(context.REG_QUEUE_HEADERS_[0], 'Queue ID');
 const insertedRegistrationSheet = { marker: 'new registration sheet' };
 assert.equal(originalGetRegistrationSheet({
   getSheetByName: () => null,
@@ -230,15 +231,19 @@ assert.ok(
   'duplicate rejection must occur before registration quota is charged'
 );
 assert.ok(
-  submitRegistrationSource.indexOf('queueRegistration_(queueSpreadsheet, data)') <
-    submitRegistrationSource.indexOf('lock.waitLock(20000)'),
-  'a valid submission must enter the durable queue before waiting on the registration lock'
+  submitRegistrationSource.indexOf('registrationWriteAllowed_(data)') <
+    submitRegistrationSource.indexOf('queueRegistration_(ss, data)'),
+  'rate-limited submissions must not enter the recoverable queue'
 );
 assert.ok(
   submitRegistrationSource.indexOf("finishQueuedRegistration_(queued, 'Saved', regNo, '')") >
     submitRegistrationSource.indexOf('sheet.appendRow(['),
   'the queue must be marked Saved only after the registration row is appended'
 );
+assert.match(backendSource, /function finishQueuedRegistration_\(queued, status, regNo, reason\)[\s\S]*createTextFinder\(queued\.queueId\)/,
+  'queue updates must locate the row by unique ID rather than a stale row number');
+assert.match(backendSource, /function processRegistrationQueue\(\)[\s\S]*rows\[i\]\[2\][\s\S]*rows\[i\]\[13\]/,
+  'queue recovery must use the queue-ID schema offsets');
 
 // A new-only sheet may have had all obsolete columns after M deleted.
 const narrowCurrent = current.slice();
