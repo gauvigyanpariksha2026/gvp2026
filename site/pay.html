@@ -137,7 +137,7 @@ select.inp:disabled{
     <a class="site-mark" href="index.html"><span>गौ विज्ञान परीक्षा 2026</span></a>
     <div class="site-nav-links">
       <a class="site-nav-link" href="index.html">पंजीकरण</a>
-      <a class="site-nav-link" href="pay.html" aria-current="page">विद्यालय भुगतान</a>
+      <a class="site-nav-link" href="pay.html" aria-current="page">छात्र सूची</a>
     </div>
   </nav>
 
@@ -147,8 +147,8 @@ select.inp:disabled{
       <p class="payment-eyebrow">School payment desk</p>
       <h1 class="mt-4 text-3xl sm:text-5xl font-semibold tracking-tight">विद्यालय शुल्क भुगतान</h1>
       <p class="mt-2 font-lat text-sm sm:text-base tracking-[0.28em] text-terra">ONE SCHOOL · ONE PAYMENT · CLEAR RECORD</p>
-      <p class="payment-hero-note">सभी पंजीकृत विद्यार्थियों की देय राशि एक साथ देखें और UPI भुगतान सुरक्षित रूप से दर्ज करें।</p>
-      <div class="payment-hero-tags"><span>₹30 प्रति विद्यार्थी</span><span>UPI भुगतान</span><span>तुरंत रिकॉर्ड</span></div>
+      <p class="payment-hero-note">ऑनलाइन भुगतान अब बंद है। अपने विद्यालय की देय राशि व पंजीकृत छात्र सूची यहाँ देखें।</p>
+      <div class="payment-hero-tags"><span>₹30 प्रति विद्यार्थी</span><span>ऑनलाइन भुगतान बंद</span><span>छात्र सूची उपलब्ध</span></div>
     </div>
     <div class="payment-coin" aria-hidden="true"><small>प्रति छात्र</small><strong>₹30</strong><span>एक साथ भुगतान</span></div>
   </header>
@@ -158,10 +158,10 @@ select.inp:disabled{
     <div class="form-intro">
       <div>
         <p class="form-kicker">Three simple steps</p>
-        <h2 class="form-title">विद्यालय चुनें, राशि देखें, भुगतान दर्ज करें</h2>
+        <h2 class="form-title">विद्यालय चुनें, राशि व छात्र सूची देखें</h2>
         <p class="form-note">विद्यालय का नाम पंजीकरण में लिखे गए नाम से बिल्कुल मिलना चाहिए।</p>
       </div>
-      <span class="fee-pill">सुरक्षित UPI भुगतान</span>
+      <span class="fee-pill">भुगतान बंद</span>
     </div>
 
     <div class="payment-flow" role="group" aria-label="भुगतान के चरण">
@@ -170,6 +170,11 @@ select.inp:disabled{
       <div data-pay-flow="2"><b aria-hidden="true">₹</b><span><strong>राशि</strong><small>Amount</small></span></div>
       <i aria-hidden="true"></i>
       <div data-pay-flow="3"><b aria-hidden="true">✅</b><span><strong>पुष्टि</strong><small>Confirm</small></span></div>
+    </div>
+
+    <div id="paymentsClosedNote" class="mb-5 rounded-lg border border-terra/40 bg-terra/10 px-4 py-3 text-sm leading-relaxed" role="status">
+      <strong>ऑनलाइन भुगतान अब बंद है।</strong> भुगतान से जुड़ी जानकारी के लिए आयोजक से संपर्क करें। विद्यालय की छात्र सूची नीचे अब भी देखी व डाउनलोड की जा सकती है।
+      <span class="block mt-1 text-xs text-ink/70">Online payment is now closed. Contact the organizer about payments. You can still view and download your school's student list below.</span>
     </div>
 
     <div class="quick-students-card" id="quickStudentsCard">
@@ -387,7 +392,7 @@ select.inp:disabled{
   </section>
 
   <!-- ===== PAYMENT GUIDE ===== -->
-  <section class="payment-guide content-card mt-6 rounded-2xl border border-gold/30 bg-cream/85 backdrop-blur px-5 py-7 sm:px-10 sm:py-9 shadow-sm">
+  <section hidden class="payment-guide content-card mt-6 rounded-2xl border border-gold/30 bg-cream/85 backdrop-blur px-5 py-7 sm:px-10 sm:py-9 shadow-sm">
     <div class="guide-heading"><p class="form-kicker">Simple and transparent</p><h2>भुगतान कैसे पूरा होगा?</h2><p>विद्यालय के लिए एक स्पष्ट, तीन चरणों वाली प्रक्रिया।</p></div>
     <div class="guide-grid">
       <article><b aria-hidden="true">🏫</b><span>विद्यालय खोजें</span><p>जिला, ब्लॉक और पंजीकरण में लिखा विद्यालय व स्थान चुनें।</p></article>
@@ -838,6 +843,10 @@ var LAST_STUDENTS=[];
 // a list that belonged to a *different* school selection.
 var LAST_STUDENTS_KEY=null;
 var BILL_REQUEST_ID=0;
+// Online payment is closed: bills and student lists still load, but the
+// UPI QR and payment-report form are never shown. Code.gs PAYMENTS_OPEN
+// enforces the same thing on the server.
+var PAYMENTS_CLOSED=true;
 function schoolKey(f){
   return [f.district,f.block,f.school,f.village].join('|').toLowerCase();
 }
@@ -1111,6 +1120,10 @@ $('billBtn').addEventListener('click',function(){
         show($('zeroNote'),'This school is fully paid. Books will be sent after verification. / शुल्क पूरा जमा है।');
         return;
       }
+      if(PAYMENTS_CLOSED){
+        show($('zeroNote'),'ऑनलाइन भुगतान अब बंद है। कृपया आयोजक से संपर्क करें। / Online payment is now closed. Please contact the organizer.');
+        return;
+      }
       var reportableAmount=Number(res.amountReportable===undefined?res.amountDue:res.amountReportable);
       if(reportableAmount<=0){
         show($('zeroNote'),'A payment report for the full amount is awaiting organizer verification. / पूरा भुगतान सत्यापन के लिए लंबित है।');
@@ -1290,7 +1303,7 @@ $('studentsDownloadBtn').addEventListener('click',function(){
 
 var isPaying = false;
 $('payBtn').addEventListener('click',function(){
-  if(isPaying) return;
+  if(isPaying||PAYMENTS_CLOSED) return;
   clean(); hide($('formErr'));
   var f=schoolFields();
   if(!LAST_BILL||LAST_BILL.amountDue<=0||LAST_BILL_KEY!==schoolKey(f)){

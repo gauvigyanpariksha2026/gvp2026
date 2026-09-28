@@ -31,6 +31,9 @@ var FEE_PER_STUDENT = 30;
 var UPI_VPA = 'SHREEDEVNARAYAN@SBI';
 var UPI_NAME = 'SHREE DEV NARAYAN GOSHALA SAM';
 var ACADEMIC_YEAR = '2026';
+// Set to true to accept new UPI payment reports again. Bills and student
+// lists keep working while this is false.
+var PAYMENTS_OPEN = false;
 
 // Only the fields the current form actually collects. (Mother, DOB, PIN,
 // Address, WhatsApp, Email were dropped from the form and are no longer
@@ -1471,6 +1474,9 @@ function getSchoolBill(district, block, school, village) {
 
 function reportSchoolPayment(data) {
   data = data || {};
+  if (!PAYMENTS_OPEN) {
+    return { ok: false, error: 'भुगतान अब बंद है / Online payment is now closed.' };
+  }
   try {
     if (data.hp) {
       return { ok: false, error: 'School name is required / विद्यालय का नाम लिखें' };
