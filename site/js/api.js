@@ -65,7 +65,7 @@ var GVP_API = (function () {
 
     return fetch(url, options)
       .then(function (res) {
-        if (!res.ok) throw new Error('सर्वर त्रुटि / Server HTTP error: ' + res.status);
+        if (!res.ok) throw new Error(httpErrorMessage_(res.status));
         return readJson_(res);
       })
       .then(cleanup_, function (err) {
@@ -88,6 +88,18 @@ var GVP_API = (function () {
         }
         throw err;
       });
+  }
+
+  // 404 / 5xx from the Apps Script endpoint means the server is gone or down,
+  // not that the visitor did anything wrong — say so plainly, Hindi first.
+  function httpErrorMessage_(status) {
+    if (status === 404) {
+      return 'सर्वर नहीं मिला (404)। सेवा अभी उपलब्ध नहीं है, कृपया कुछ देर बाद पुनः प्रयास करें। / Server not found (404). The service is currently unreachable, please try again later.';
+    }
+    if (status >= 500) {
+      return 'सर्वर में समस्या (' + status + ')। कृपया कुछ देर बाद पुनः प्रयास करें। / Server problem (' + status + '). Please try again later.';
+    }
+    return 'सर्वर त्रुटि / Server HTTP error: ' + status;
   }
 
   function readJson_(res) {
